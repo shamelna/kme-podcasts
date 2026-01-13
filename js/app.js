@@ -523,6 +523,10 @@ class PodcastApp {
                 control.classList.remove('active');
             }
         });
+        
+        // Re-render episodes to show/hide admin controls
+        this.displayEpisodes();
+        this.displayFeaturedEpisodes();
     }
 
     updateAdminPanel() {

@@ -90,31 +90,27 @@ class AutoUpdateService {
         const cacheKey = `rss_${feedUrl}`;
         const cached = this.cache.get(cacheKey);
         
-        if (cached && (Date.now() - cached.timestamp) < this.cacheExpiry) {
+        if (cached && (Date.now() - cached.timestamp) < 5 * 60 * 1000) {
+            console.log(`📦 Using cached data for ${feedUrl}`);
             return cached.data;
         }
         
-        // Fetch fresh data
-        const feedData = await this.rssParser.fetchRSSFeed(feedUrl);
-        
-        if (!feedData || !feedData.podcast) {
-            return { success: false, newEpisodes: 0 };
+        try {
+            console.log(`🌐 Fetching fresh RSS data for ${feedUrl}`);
+            // Use the global rssParser instead of this.rssParser
+            const feedData = await rssParser.fetchRSSFeed(feedUrl);
+            
+            // Cache the result
+            this.cache.set(cacheKey, {
+                data: feedData,
+                timestamp: Date.now()
+            });
+            
+            return feedData;
+        } catch (error) {
+            console.error(`❌ Error fetching RSS for ${feedUrl}:`, error);
+            throw error;
         }
-        
-        // Compare with database to find new episodes
-        const newEpisodes = await this.findNewEpisodes(feedData.podcast);
-        
-        // Cache the result
-        this.cache.set(cacheKey, {
-            data: feedData,
-            timestamp: Date.now()
-        });
-        
-        return {
-            success: true,
-            newEpisodes: newEpisodes.length,
-            totalEpisodes: feedData.podcast.episodes.length
-        };
     }
 
     async findNewEpisodes(podcastData) {

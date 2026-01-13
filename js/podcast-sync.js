@@ -137,9 +137,13 @@ class PodcastSyncService {
             // Save podcast info
             await this.db.savePodcast(podcastData);
             
-            // Save all episodes
+            // Save episodes with limit to avoid Firebase size limits
             if (podcastData.episodes && podcastData.episodes.length > 0) {
-                for (const episode of podcastData.episodes) {
+                // Limit to last 50 episodes to avoid Firebase document size limits
+                const episodesToSave = podcastData.episodes.slice(-50);
+                console.log(`📊 Saving ${episodesToSave.length} episodes (limited from ${podcastData.episodes.length})`);
+                
+                for (const episode of episodesToSave) {
                     await this.db.saveEpisode({
                         id: episode.id,
                         title: episode.title,
@@ -164,7 +168,7 @@ class PodcastSyncService {
             return {
                 success: true,
                 podcast: podcastData,
-                episodesAdded: podcastData.episodes ? podcastData.episodes.length : 0
+                episodesAdded: podcastData.episodes ? Math.min(podcastData.episodes.length, 50) : 0
             };
             
         } catch (error) {
