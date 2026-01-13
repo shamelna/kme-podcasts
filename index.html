@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kaizen Made Easy - Dynamic Podcast Collection</title>
+    <meta name="description" content="Dynamic podcast collection for continuous improvement and Lean methodology content">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="author" content="Kaizen Made Easy">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Kaizen Made Easy - Dynamic Podcast Collection">
+    <meta property="og:description" content="Dynamic podcast collection for continuous improvement and Lean methodology content">
+    <meta property="og:image" content="https://marketing.kaizenmadeeasy.com/assets/images/Logo%20new%202024%20v2%20-%20White.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:title" content="Kaizen Made Easy - Dynamic Podcast Collection">
+    <meta property="twitter:description" content="Dynamic podcast collection for continuous improvement and Lean methodology content">
+    <meta property="twitter:image" content="https://marketing.kaizenmadeeasy.com/assets/images/Logo%20new%202024%20v2%20-%20White.png">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Main Content Container -->
+    <div class="main-content">
+        <header class="app-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <img src="https://marketing.kaizenmadeeasy.com/assets/images/Logo_blue.png" alt="Kaizen Made Easy" class="logo-img">
+                <div class="brand-text">
+                    <h1>Kaizen Made Easy</h1>
+                    <p>Continuous improvement through knowledge sharing</p>
+                </div>
+            </div>
+            <nav class="header-nav">
+                <a href="https://kaizenmadeeasy.com" target="_blank" class="nav-link" aria-label="Website">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    <span>Website</span>
+                </a>
+                <a href="https://www.youtube.com/@kaizenmadeeasy" target="_blank" class="nav-link" aria-label="YouTube">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+                    </svg>
+                    <span>YouTube</span>
+                </a>
+                <a href="https://www.linkedin.com/company/kaizen-made-easy" target="_blank" class="nav-link" aria-label="LinkedIn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+                    </svg>
+                    <span>LinkedIn</span>
+                </a>
+                <a href="https://store.kaizenmadeeasy.com/collections/all" target="_blank" class="nav-link nav-link-store" aria-label="Store">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/>
+                    </svg>
+                    <span>Store</span>
+                </a>
+            </nav>
+        </div>
+    </header>
+
+        <main class="app-main">
+            <!-- Featured Episodes Section -->
+            <section class="featured-section">
+                <div class="section-header">
+                    <h2>⭐ Featured Episodes</h2>
+                </div>
+                <div class="featured-grid" id="featuredGrid">
+                    <!-- Featured episodes will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Latest Episodes Section -->
+            <section class="latest-section">
+                <div class="section-header">
+                    <h2>🔥 Latest Episodes</h2>
+                    <p>Most recent episodes from tracked podcasts</p>
+                </div>
+                <div class="latest-grid" id="latestGrid">
+                    <!-- Latest episodes will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Search and Filter Section -->
+            <section class="search-section">
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <input type="text" id="searchInput" placeholder="🔍 Search by title, podcast, or keywords..." class="search-input">
+                    </div>
+                </div>
+                <div class="filter-container">
+                    <select id="podcastFilter" class="filter-select">
+                        <option value="">All Podcasts</option>
+                    </select>
+                    <select id="sortFilter" class="filter-select">
+                        <option value="date-desc">Latest First</option>
+                        <option value="date-asc">Oldest First</option>
+                        <option value="title-asc">Title A-Z</option>
+                        <option value="title-desc">Title Z-A</option>
+                    </select>
+                    <button id="clearFilters" class="clear-filters-btn">🔄 Clear Filters</button>
+                </div>
+            </section>
+
+            <!-- Episodes Grid -->
+            <section class="episodes-section">
+                <!-- Top Pagination Container -->
+                <div class="pagination-container pagination-top" id="topPaginationContainer">
+                    <!-- Top pagination will be loaded here -->
+                </div>
+                
+                <div class="podcast-grid" id="podcastGrid">
+                    <!-- Episodes will be loaded here -->
+                </div>
+                
+                <!-- Pagination Container -->
+                <div class="pagination-container" id="paginationContainer">
+                    <!-- Pagination will be loaded here -->
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <img src="https://marketing.kaizenmadeeasy.com/assets/images/Logo%20new%202024%20v2%20-%20White.png" alt="Kaizen Made Easy" class="footer-logo">
+                    <h3>Kaizen Made Easy</h3>
+                    <p>Empowering continuous improvement through knowledge sharing and innovation</p>
+                </div>
+                
+                <div class="footer-bottom">
+                    <div class="footer-copyright">
+                        <p>&copy; 2024 Kaizen Made Easy. All rights reserved.</p>
+                        <p>Built with passion for the continuous improvement community</p>
+                    </div>
+                </div>
+            </div>
+        </footer>
+</div>
+
+    <!-- Audio Player Container -->
+    <div class="audio-player-container" id="audioPlayerContainer">
+        <div class="player-main">
+            <div class="player-info">
+                <div class="player-title" id="playerTitle">Episode Title</div>
+                <div class="player-podcast" id="playerPodcast">Podcast Name</div>
+            </div>
+            
+            <audio id="audioPlayer" controls></audio>
+            
+            <div class="player-controls">
+                <button class="player-control-btn" onclick="app.playPrevious()">⏮️ Previous</button>
+                <button class="player-control-btn" onclick="app.togglePlaylist()">📋 Playlist</button>
+                <button class="player-control-btn" onclick="app.playNext()">⏭️ Next</button>
+                <button class="player-close-btn" onclick="app.closeAudioPlayer()">✕</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Playlist Sidebar -->
+    <div class="playlist-sidebar" id="playlistSidebar">
+        <div class="playlist-header">
+            <h3>Playlist</h3>
+            <button class="close-playlist-btn" onclick="app.hidePlaylistSidebar()">✕</button>
+        </div>
+        <div class="playlist-controls">
+            <button onclick="app.shufflePlaylist()">🔀 Shuffle</button>
+            <button onclick="app.clearPlaylist()">🗑️ Clear</button>
+        </div>
+        <div class="playlist-container" id="playlistContainer">
+            <div class="playlist-empty">Your playlist is empty</div>
+        </div>
+    </div>
+
+    <!-- Add Podcast Modal -->
+    <div class="modal" id="addPodcastModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><span class="modal-icon">➕</span> Add New Podcast</h2>
+                <button class="modal-close" onclick="app.toggleAddPodcastModal()" aria-label="Close modal">&times;</button>
+            </div>
+            <form class="add-podcast-form" onsubmit="app.addNewPodcast(event)">
+                <!-- RSS Feed Section -->
+                <div id="rssSection">
+                    <div class="form-group">
+                        <label for="rssFeedUrl">RSS Feed URL</label>
+                        <input 
+                            type="url" 
+                            id="rssFeedUrl" 
+                            placeholder="https://example.com/podcast/feed.xml" 
+                            autocomplete="off"
+                            required
+                        >
+                        <small class="form-help">Enter the direct RSS feed URL</small>
+                    </div>
+                    <div class="form-divider">
+                        <span>OR</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="podcastWebsite">Podcast Website</label>
+                        <input 
+                            type="url" 
+                            id="podcastWebsite" 
+                            placeholder="https://example.com/podcast" 
+                            autocomplete="off"
+                        >
+                        <small class="form-help">We'll try to discover the RSS feed automatically</small>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="app.toggleAddPodcastModal()">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <span class="btn-icon">➕</span> Add Podcast
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Panel -->
+    <div id="adminPanel" class="admin-panel">
+        <h3>🔧 Admin Panel</h3>
+        <div class="admin-controls">
+            <button onclick="window.app.toggleAddPodcastModal()">Add Podcast</button>
+            <button onclick="window.app.manualSyncAllPodcasts()">Manual Sync</button>
+            <button disabled>Sync All (Disabled)</button>
+            <button onclick="window.app.clearDatabase()">Clear Database</button>
+        </div>
+        <div class="admin-stats" id="adminStats"></div>
+        <div class="sync-status" id="syncStatus"></div>
+    </div>
+
+    <!-- Scripts -->
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+
+    <!-- App Scripts -->
+    <script src="js/firebase-config.js?v=18"></script>
+    <script src="js/firebase-test.js?v=18"></script>
+    <script src="js/firebase-rules-test.js?v=18"></script>
+    <script src="js/data-migration.js?v=18"></script>
+    <script src="js/rss-parser.js?v=18"></script>
+    <script src="js/podcast-sync.js?v=18"></script>
+    <script src="js/seed-data.js?v=18"></script>
+    <script src="js/app.js?v=18"></script>
+    
+    <!-- Auto-Update Service -->
+    <script src="js/auto-update-service.js?v=18"></script>
+
+    <!-- Service Worker Registration (for PWA) -->
+    <!-- Completely removed - sw.js deleted -->
+</body>
+</html>
