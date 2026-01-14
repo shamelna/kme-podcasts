@@ -23,7 +23,8 @@
     <meta property="twitter:image" content="https://marketing.kaizenmadeeasy.com/assets/images/Logo%20new%202024%20v2%20-%20White.png">
 
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="icon" type="image/png" href="https://marketing.kaizenmadeeasy.com/assets/images/Logo_blue.png">
+    <link rel="apple-touch-icon" href="https://marketing.kaizenmadeeasy.com/assets/images/Logo_blue.png">
     
     <!-- Styles -->
     <link rel="stylesheet" href="css/styles.css">
@@ -74,6 +75,9 @@
             <section class="featured-section">
                 <div class="section-header">
                     <h2>⭐ Featured Episodes</h2>
+                    <div class="featured-admin-controls" id="featuredAdminControls" style="display: none;">
+                        <button class="admin-btn-small unfeature" onclick="app.unfeatureAllEpisodes()">Unfeature All</button>
+                    </div>
                 </div>
                 <div class="featured-grid" id="featuredGrid">
                     <!-- Featured episodes will be loaded here -->
