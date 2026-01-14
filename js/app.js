@@ -33,38 +33,33 @@ class PodcastApp {
 
     async loadData() {
         try {
-            // Show loading states
-            this.showLoading('featuredGrid', 'Loading featured episodes...');
-            this.showLoading('latestGrid', 'Loading latest episodes...');
-            this.showLoading('podcastGrid', 'Loading episode library...');
-
             // Load featured episodes
-            this.featuredEpisodes = await podcastDB.getFeaturedEpisodes(10);
+            this.featuredEpisodes = await podcastDB.getFeaturedEpisodes();
             console.log(`📊 Loaded ${this.featuredEpisodes.length} featured episodes`);
-            this.displayFeaturedEpisodes();
-
+            
             // Load latest episodes
             this.latestEpisodes = await podcastDB.getLatestEpisodes(10);
             console.log(`📊 Loaded ${this.latestEpisodes.length} latest episodes`);
-            this.displayLatestEpisodes();
-
-            // Load all episodes for main grid
-            this.episodes = await podcastDB.searchEpisodes('');
-            console.log(`📊 Loaded ${this.episodes.length} total episodes`);
-            this.totalEpisodes = this.episodes.length; // Update totalEpisodes
             
-            // Extract unique podcasts
-            this.episodes.forEach(episode => {
-                if (episode.podcastTitle) {
-                    this.allPodcasts.add(episode.podcastTitle);
-                }
-            });
+            // Load all episodes for search and pagination
+            this.allEpisodes = await podcastDB.getAllEpisodes();
+            console.log(`📊 Loaded ${this.allEpisodes.length} total episodes`);
             
+            // Extract unique podcast names
+            this.allPodcasts = new Set(this.allEpisodes.map(ep => ep.podcastTitle));
             console.log(`📊 Found ${this.allPodcasts.size} unique podcasts`);
+            
+            // Set filtered episodes to all episodes initially
+            this.filteredEpisodes = [...this.allEpisodes];
+            
+            // Display data
+            this.displayFeaturedEpisodes();
+            this.displayLatestEpisodes();
+            this.displayEpisodes();
             this.populateFilters();
-            this.filterEpisodes();
+            
         } catch (error) {
-            console.error('Error loading data:', error);
+            console.error('❌ Error loading data:', error);
             this.showError('Failed to load podcast data');
         }
     }
@@ -242,6 +237,11 @@ class PodcastApp {
             </div>
         `;
         
+        // Debug: Check if admin controls should be visible
+        if (this.adminMode) {
+            console.log('🔧 Admin mode ON - controls should be visible for episode:', episode.title);
+        }
+        
         return episodeCard;
     }
 
@@ -403,39 +403,60 @@ class PodcastApp {
 
     async featureEpisode(episodeId) {
         try {
-            await syncService.featureEpisode(episodeId);
+            // Look for episode in all episodes arrays
+            const episode = this.allEpisodes.find(e => e.id === episodeId) || 
+                          this.filteredEpisodes.find(e => e.id === episodeId) ||
+                          this.latestEpisodes.find(e => e.id === episodeId);
             
-            // Update local data
-            const episode = this.episodes.find(e => e.id === episodeId);
-            if (episode) {
-                episode.featured = true;
-                this.featuredEpisodes.push(episode);
+            if (!episode) {
+                this.showNotification('❌ Episode not found', 'error');
+                return;
             }
+
+            // Update episode in Firebase
+            await podcastDB.db.collection('episodes').doc(episodeId).update({
+                featured: true,
+                featuredOrder: Date.now() // Use timestamp for ordering
+            });
             
-            this.displayFeaturedEpisodes();
-            this.displayEpisodes();
+            this.showNotification(`✅ Featured "${episode.title}"`, 'success');
+            
+            // Reload data to update UI
+            await this.loadData();
+            
         } catch (error) {
             console.error('Error featuring episode:', error);
-            alert('Error featuring episode');
+            this.showNotification('Failed to feature episode', 'error');
         }
     }
 
     async unfeatureEpisode(episodeId) {
         try {
-            await syncService.unfeatureEpisode(episodeId);
+            // Look for episode in all episodes arrays
+            const episode = this.allEpisodes.find(e => e.id === episodeId) || 
+                          this.filteredEpisodes.find(e => e.id === episodeId) ||
+                          this.featuredEpisodes.find(e => e.id === episodeId) ||
+                          this.latestEpisodes.find(e => e.id === episodeId);
             
-            // Update local data
-            const episode = this.episodes.find(e => e.id === episodeId);
-            if (episode) {
-                episode.featured = false;
-                this.featuredEpisodes = this.featuredEpisodes.filter(e => e.id !== episodeId);
+            if (!episode) {
+                this.showNotification('❌ Episode not found', 'error');
+                return;
             }
+
+            // Update episode in Firebase
+            await podcastDB.db.collection('episodes').doc(episodeId).update({
+                featured: false,
+                featuredOrder: null
+            });
             
-            this.displayFeaturedEpisodes();
-            this.displayEpisodes();
+            this.showNotification(`🔄 Unfeatured "${episode.title}"`, 'success');
+            
+            // Reload data to update UI
+            await this.loadData();
+            
         } catch (error) {
             console.error('Error unfeaturing episode:', error);
-            alert('Error unfeaturing episode');
+            this.showNotification('Failed to unfeature episode', 'error');
         }
     }
 
@@ -499,6 +520,70 @@ class PodcastApp {
         }
     }
 
+    // Show notification function
+    showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.innerHTML = `
+            <div class="notification-content">
+                <span class="notification-message">${message}</span>
+                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
+            </div>
+        `;
+        
+        // Add to page
+        document.body.appendChild(notification);
+        
+        // Auto-remove after 4 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 4000);
+    }
+
+    // Unfeature all featured episodes at once
+    async unfeatureAllEpisodes() {
+        try {
+            if (!confirm('Are you sure you want to unfeature ALL featured episodes?')) {
+                return;
+            }
+
+            console.log('🔄 Unfeaturing all episodes...');
+            
+            // Get all featured episodes from the episodes collection
+            const featuredSnapshot = await podcastDB.db.collection('episodes')
+                .where('featured', '==', true)
+                .get();
+            
+            const batch = podcastDB.db.batch();
+            
+            featuredSnapshot.forEach(doc => {
+                // Update episode to remove featured status
+                const episodeRef = podcastDB.db.collection('episodes').doc(doc.id);
+                batch.update(episodeRef, {
+                    featured: false,
+                    featuredOrder: null
+                });
+            });
+            
+            await batch.commit();
+            
+            console.log('✅ All episodes unfeatured successfully');
+            
+            // Show success notification
+            this.showNotification('✅ All episodes have been unfeatured', 'success');
+            
+            // Reload data to update UI
+            await this.loadData();
+            
+        } catch (error) {
+            console.error('❌ Error unfeaturing all episodes:', error);
+            this.showNotification('Failed to unfeature episodes', 'error');
+        }
+    }
+
     toggleAdminMode() {
         this.adminMode = !this.adminMode;
         
@@ -524,6 +609,12 @@ class PodcastApp {
             }
         });
         
+        // Toggle featured section admin controls
+        const featuredAdminControls = document.getElementById('featuredAdminControls');
+        if (featuredAdminControls) {
+            featuredAdminControls.style.display = this.adminMode ? 'block' : 'none';
+        }
+        
         // Re-render episodes to show/hide admin controls
         this.displayEpisodes();
         this.displayFeaturedEpisodes();
@@ -540,9 +631,23 @@ class PodcastApp {
         const adminPassword = localStorage.getItem('kme-admin-password');
         if (adminPassword === 'kaizen2024') {
             adminPanel.classList.add('active');
+            this.adminMode = true; // Set admin mode flag
             console.log('👨‍💼 Admin panel activated with password');
+            
+            // Show featured admin controls
+            const featuredAdminControls = document.getElementById('featuredAdminControls');
+            if (featuredAdminControls) {
+                featuredAdminControls.style.display = 'block';
+            }
         } else {
             adminPanel.classList.remove('active');
+            this.adminMode = false; // Clear admin mode flag
+            
+            // Hide featured admin controls
+            const featuredAdminControls = document.getElementById('featuredAdminControls');
+            if (featuredAdminControls) {
+                featuredAdminControls.style.display = 'none';
+            }
         }
     }
 
@@ -581,13 +686,6 @@ class PodcastApp {
             setTimeout(() => {
                 element.style.animation = '';
             }, 2000);
-        }
-    }
-
-    playEpisode(episodeId) {
-        const episode = this.episodes.find(e => e.id === episodeId);
-        if (episode && episode.audioUrl) {
-            window.open(episode.audioUrl, '_blank');
         }
     }
 
@@ -739,7 +837,12 @@ class PodcastApp {
 
     // Audio Player Methods
     playEpisode(episodeId) {
-        const episode = this.episodes.find(e => e.id === episodeId);
+        // Look for episode in all episodes arrays
+        const episode = this.allEpisodes.find(e => e.id === episodeId) || 
+                      this.filteredEpisodes.find(e => e.id === episodeId) ||
+                      this.featuredEpisodes.find(e => e.id === episodeId) ||
+                      this.latestEpisodes.find(e => e.id === episodeId);
+        
         if (!episode || !episode.audioUrl) {
             alert('Episode not available for playback');
             return;
@@ -770,29 +873,31 @@ class PodcastApp {
     }
 
     addToPlaylist(episodeId) {
-        const episode = this.episodes.find(e => e.id === episodeId);
-        if (!episode) return;
+        // Look for episode in all episodes arrays
+        const episode = this.allEpisodes.find(e => e.id === episodeId) || 
+                      this.filteredEpisodes.find(e => e.id === episodeId) ||
+                      this.featuredEpisodes.find(e => e.id === episodeId) ||
+                      this.latestEpisodes.find(e => e.id === episodeId);
+        
+        if (!episode) {
+            this.showNotification('❌ Episode not found', 'error');
+            return;
+        }
 
         // Check if already in playlist
         if (this.playlist.find(e => e.id === episodeId)) {
-            console.log('Episode already in playlist');
+            this.showNotification('📋 Episode already in playlist', 'warning');
             return;
         }
 
         this.playlist.push(episode);
-        console.log(`Added to playlist: ${episode.title}`);
+        this.showNotification(`📋 Added "${episode.title}" to playlist`, 'success');
         
-        // Only update UI if playlist container exists
-        const container = document.getElementById('playlistContainer');
-        if (container) {
-            this.updatePlaylistUI();
-        }
+        // Update playlist UI
+        this.updatePlaylistUI();
         
-        // Show playlist sidebar if it exists
-        const sidebar = document.getElementById('playlistSidebar');
-        if (sidebar) {
-            this.showPlaylistSidebar();
-        }
+        // Show playlist sidebar
+        this.showPlaylistSidebar();
     }
 
     removeFromPlaylist(episodeId) {
@@ -1074,27 +1179,11 @@ playFromPlaylist(index) {
     }
 
     toggleFavorite(episodeId) {
-        const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-        const index = favorites.indexOf(episodeId);
-        if (index > -1) {
-            favorites.splice(index, 1);
-        } else {
-            favorites.push(episodeId);
-        }
-        localStorage.setItem('favorites', JSON.stringify(favorites));
-        this.displayEpisodes();
+        this.showNotification('⭐ Favorites feature coming soon!', 'info');
     }
 
     toggleWatchLater(episodeId) {
-        const watchLater = JSON.parse(localStorage.getItem('watchLater') || '[]');
-        const index = watchLater.indexOf(episodeId);
-        if (index > -1) {
-            watchLater.splice(index, 1);
-        } else {
-            watchLater.push(episodeId);
-        }
-        localStorage.setItem('watchLater', JSON.stringify(watchLater));
-        this.displayEpisodes();
+        this.showNotification('⏰ Watch Later feature coming soon!', 'info');
     }
 
     setupAutoUpdateIntegration() {

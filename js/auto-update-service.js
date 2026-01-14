@@ -13,7 +13,7 @@ class AutoUpdateService {
     }
 
     async init() {
-        console.log('🔄 Auto-Update Service initialized');
+        console.log('🔄 Auto-Update Service initialized (development mode - auto-updates disabled)');
         
         // Monitor online/offline status
         window.addEventListener('online', () => {
@@ -24,17 +24,16 @@ class AutoUpdateService {
             this.isOnline = false;
         });
         
-        // Start periodic polling
-        this.startPeriodicUpdates();
+        // Initialize cache
+        this.cache = new Map();
         
-        // Setup service worker for background updates
-        this.setupServiceWorker();
+        // Set last sync time
+        this.lastSyncTime = parseInt(localStorage.getItem('lastSyncTime') || '0');
         
-        // Setup real-time listeners
-        this.setupRealtimeListeners();
+        // Display initial stats
+        this.getUpdateStats();
         
-        // Check for new episodes on page load
-        setTimeout(() => this.checkForNewEpisodes(), 2000);
+        console.log('🔄 Auto-Update Service ready (manual sync only)');
     }
 
     startPeriodicUpdates() {
@@ -49,18 +48,14 @@ class AutoUpdateService {
                 await this.checkForNewEpisodes();
             }
         }, 60 * 60 * 1000); // 1 hour
-        
-        console.log('⏰ Started periodic updates (every hour)');
     }
 
     async checkForNewEpisodes() {
         try {
             // Check all podcasts in main database (not tracked podcasts)
-            console.log('🔄 Auto-update service: Checking all podcasts for new episodes...');
             
             // Get all podcasts from main collection
             const allPodcasts = await this.db.getAllPodcasts();
-            console.log(`📊 Found ${allPodcasts.length} podcasts to check`);
             
             for (const podcast of allPodcasts) {
                 try {
@@ -71,7 +66,7 @@ class AutoUpdateService {
                         }
                     }
                 } catch (error) {
-                    console.error(`❌ Error checking ${podcast.title}:`, error);
+                    // Silently handle individual podcast errors
                 }
             }
             
@@ -81,7 +76,8 @@ class AutoUpdateService {
             
             this.getUpdateStats();
         } catch (error) {
-            console.error('❌ Error checking for new episodes:', error);
+            // Only log critical errors
+            console.error('❌ Critical error in auto-update:', error);
         }
     }
 
@@ -91,12 +87,10 @@ class AutoUpdateService {
         const cached = this.cache.get(cacheKey);
         
         if (cached && (Date.now() - cached.timestamp) < 5 * 60 * 1000) {
-            console.log(`📦 Using cached data for ${feedUrl}`);
             return cached.data;
         }
         
         try {
-            console.log(`🌐 Fetching fresh RSS data for ${feedUrl}`);
             // Use the global rssParser instead of this.rssParser
             const feedData = await rssParser.fetchRSSFeed(feedUrl);
             
@@ -108,7 +102,7 @@ class AutoUpdateService {
             
             return feedData;
         } catch (error) {
-            console.error(`❌ Error fetching RSS for ${feedUrl}:`, error);
+            // Silently handle RSS fetch errors
             throw error;
         }
     }

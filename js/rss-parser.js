@@ -13,11 +13,8 @@ class RSSFeedParser {
 
     async fetchRSSFeed(feedUrl) {
         try {
-            console.log(`🔍 Fetching RSS feed: ${feedUrl}`);
-            
             // First try direct fetch (some RSS feeds allow CORS)
             try {
-                console.log('🌐 Trying direct fetch first...');
                 const directResponse = await fetch(feedUrl);
                 if (directResponse.ok) {
                     const xmlContent = await directResponse.text();
@@ -26,12 +23,11 @@ class RSSFeedParser {
                     
                     const parseError = xmlDoc.querySelector('parsererror');
                     if (!parseError) {
-                        console.log('✅ RSS feed fetched directly (no proxy needed)');
                         return this.parsePodcastFeed(xmlDoc, feedUrl);
                     }
                 }
             } catch (directError) {
-                console.log('⚠️ Direct fetch failed, trying proxies...');
+                // Direct fetch failed, try proxies
             }
             
             // Try different proxies until one works
@@ -42,7 +38,6 @@ class RSSFeedParser {
                     
                     if (response.ok) {
                         const contentType = response.headers.get('content-type') || '';
-                        console.log(`📋 Proxy ${i + 1} response content-type: ${contentType}`);
                         
                         let data;
                         
@@ -57,7 +52,6 @@ class RSSFeedParser {
                                 throw new Error('XML parsing failed: ' + parseError.textContent);
                             }
                             
-                            console.log('✅ RSS feed parsed successfully (local proxy)');
                             return this.parsePodcastFeed(xmlDoc, feedUrl);
                         }
                         
@@ -67,7 +61,6 @@ class RSSFeedParser {
                         } else {
                             // If not JSON, try to get text and parse manually
                             const text = await response.text();
-                            console.log(`📄 Proxy ${i + 1} raw response (first 200 chars):`, text.substring(0, 200));
                             
                             // Check if it's an HTML error page
                             if (text.includes('<!DOCTYPE html>') || text.includes('<html')) {
@@ -88,7 +81,6 @@ class RSSFeedParser {
                                     throw new Error('XML parsing failed: ' + parseError.textContent);
                                 }
                                 
-                                console.log('✅ RSS feed parsed successfully (direct XML)');
                                 return this.parsePodcastFeed(xmlDoc, feedUrl);
                             }
                         }
@@ -110,11 +102,9 @@ class RSSFeedParser {
                             throw new Error('XML parsing failed: ' + parseError.textContent);
                         }
                         
-                        console.log('✅ RSS feed parsed successfully');
                         return this.parsePodcastFeed(xmlDoc, feedUrl);
                     }
                 } catch (proxyError) {
-                    console.warn(`⚠️ Proxy ${i + 1} failed:`, proxyError.message);
                     continue; // Try next proxy
                 }
             }
@@ -122,16 +112,13 @@ class RSSFeedParser {
             throw new Error('All proxies failed');
             
         } catch (error) {
-            console.error('❌ Error fetching RSS feed:', error);
             throw error;
         }
     }
 
     async fetchWithProxy(feedUrl, proxy) {
         const url = proxy + encodeURIComponent(feedUrl);
-        console.log(`🌐 Trying proxy: ${proxy.substring(0, 50)}...`);
         const response = await fetch(url);
-        console.log(`📡 Proxy response status: ${response.status}`);
         return response;
     }
 
@@ -174,11 +161,9 @@ class RSSFeedParser {
             podcast.totalEpisodes = episodes.length;
             podcast.episodes = episodes;
 
-            console.log(`✅ Parsed ${episodes.length} episodes from "${podcast.title}"`);
             return { podcast, episodes };
             
         } catch (error) {
-            console.error('❌ Error parsing podcast feed:', error);
             throw error;
         }
     }

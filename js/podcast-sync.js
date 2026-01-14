@@ -134,14 +134,17 @@ class PodcastSyncService {
             // Skip tracked podcasts collection and save directly to main collections
             console.log('📝 Adding podcast directly to main collections (auth disabled)');
             
-            // Save podcast info
-            await this.db.savePodcast(podcastData);
-            
-            // Save episodes with limit to avoid Firebase size limits
+            // Limit episodes in podcast object to avoid Firebase size limits
             if (podcastData.episodes && podcastData.episodes.length > 0) {
                 // Limit to last 50 episodes to avoid Firebase document size limits
                 const episodesToSave = podcastData.episodes.slice(-50);
                 console.log(`📊 Saving ${episodesToSave.length} episodes (limited from ${podcastData.episodes.length})`);
+                
+                // Update podcast data to only include limited episodes
+                podcastData.episodes = episodesToSave;
+                
+                // Save podcast info
+                await this.db.savePodcast(podcastData);
                 
                 for (const episode of episodesToSave) {
                     await this.db.saveEpisode({
@@ -163,6 +166,9 @@ class PodcastSyncService {
                         isNew: true
                     });
                 }
+            } else {
+                // Save podcast info without episodes
+                await this.db.savePodcast(podcastData);
             }
 
             return {

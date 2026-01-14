@@ -145,6 +145,21 @@ class PodcastDatabase {
         }
     }
 
+    async getAllEpisodes() {
+        try {
+            const snapshot = await this.db.collection('episodes')
+                .orderBy('publishDate', 'desc')
+                .get();
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) {
+            console.error('Error fetching all episodes:', error);
+            if (error.code === 'permission-denied') {
+                console.error('🔒 Firebase security rules are blocking access. Please apply the provided rules in Firebase Console.');
+            }
+            throw error;
+        }
+    }
+
     async getTrackedPodcasts() {
         try {
             const snapshot = await this.db.collection('trackedPodcasts')
