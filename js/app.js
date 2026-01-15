@@ -16,15 +16,104 @@ class PodcastApp {
         this.init();
     }
 
+    // Helper function to strip HTML tags
+    stripHtml(html) {
+        if (!html) return '';
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        return div.textContent || div.innerText || '';
+    }
+
+    // Helper function to get clean description for tooltips
+    getCleanDescription(description, maxLength = 250) {
+        if (!description) return 'No description available';
+        const cleanText = this.stripHtml(description);
+        return cleanText.substring(0, maxLength) || 'No description available';
+    }
+
+    // Setup JavaScript tooltips
+    setupTooltips() {
+        // Remove any existing tooltip
+        const existingTooltip = document.getElementById('custom-tooltip');
+        if (existingTooltip) {
+            existingTooltip.remove();
+        }
+
+        // Create tooltip element
+        const tooltip = document.createElement('div');
+        tooltip.id = 'custom-tooltip';
+        tooltip.style.cssText = `
+            position: absolute;
+            background: #0f456c;
+            color: #fff;
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            white-space: normal;
+            max-width: 300px;
+            word-wrap: break-word;
+            z-index: 10000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            line-height: 1.3;
+            pointer-events: none;
+            visibility: hidden;
+        `;
+        document.body.appendChild(tooltip);
+
+        // Add event listeners to all elements with data-description
+        this.addTooltipListeners();
+    }
+
+    // Add tooltip listeners to elements
+    addTooltipListeners() {
+        const elements = document.querySelectorAll('[data-description]');
+        
+        elements.forEach(element => {
+            element.addEventListener('mouseenter', (e) => this.showTooltip(e));
+            element.addEventListener('mouseleave', () => this.hideTooltip());
+        });
+    }
+
+    // Show tooltip
+    showTooltip(event) {
+        const tooltip = document.getElementById('custom-tooltip');
+        if (!tooltip) return;
+
+        const description = event.target.getAttribute('data-description');
+        if (!description) return;
+
+        tooltip.textContent = description;
+        tooltip.style.opacity = '1';
+        tooltip.style.visibility = 'visible';
+
+        // Position tooltip
+        const rect = event.target.getBoundingClientRect();
+        tooltip.style.left = rect.left + (rect.width / 2) - (tooltip.offsetWidth / 2) + 'px';
+        tooltip.style.top = rect.top - tooltip.offsetHeight - 10 + 'px';
+    }
+
+    // Hide tooltip
+    hideTooltip() {
+        const tooltip = document.getElementById('custom-tooltip');
+        if (!tooltip) return;
+
+        tooltip.style.opacity = '0';
+        tooltip.style.visibility = 'hidden';
+    }
+
     async init() {
         try {
             await this.loadData();
             this.setupEventListeners();
             this.updateAdminPanel();
-            console.log('🚀 Kaizen Podcast App initialized successfully');
             
             // Initialize auto-update service integration
             this.setupAutoUpdateIntegration();
+            
+            // Setup tooltips
+            this.setupTooltips();
         } catch (error) {
             console.error('Error initializing app:', error);
             this.showError('Failed to load application');
@@ -35,19 +124,15 @@ class PodcastApp {
         try {
             // Load featured episodes
             this.featuredEpisodes = await podcastDB.getFeaturedEpisodes();
-            console.log(`📊 Loaded ${this.featuredEpisodes.length} featured episodes`);
             
             // Load latest episodes
-            this.latestEpisodes = await podcastDB.getLatestEpisodes(10);
-            console.log(`📊 Loaded ${this.latestEpisodes.length} latest episodes`);
+            this.latestEpisodes = await podcastDB.getLatestEpisodes(5);
             
             // Load all episodes for search and pagination
             this.allEpisodes = await podcastDB.getAllEpisodes();
-            console.log(`📊 Loaded ${this.allEpisodes.length} total episodes`);
             
             // Extract unique podcast names
             this.allPodcasts = new Set(this.allEpisodes.map(ep => ep.podcastTitle));
-            console.log(`📊 Found ${this.allPodcasts.size} unique podcasts`);
             
             // Set filtered episodes to all episodes initially
             this.filteredEpisodes = [...this.allEpisodes];
@@ -59,7 +144,7 @@ class PodcastApp {
             this.populateFilters();
             
         } catch (error) {
-            console.error('❌ Error loading data:', error);
+            console.error('Failed to load podcast data:', error);
             this.showError('Failed to load podcast data');
         }
     }
@@ -81,11 +166,21 @@ class PodcastApp {
 
         featuredGrid.innerHTML = this.featuredEpisodes.map(episode => `
             <div class="featured-card" onclick="app.playEpisode('${episode.id}')">
-                <div class="featured-card-title">${this.escapeHtml(episode.title)}</div>
-                <div class="featured-card-podcast">${this.escapeHtml(episode.podcastTitle)}</div>
-                <div class="featured-card-date">${this.formatDate(episode.publishDate)}</div>
+                <img src="${episode.image || 'https://marketing.kaizenmadeeasy.com/assets/images/Logo_blue.png'}" 
+                     alt="${this.escapeHtml(episode.title)}" 
+                     class="featured-card-image"
+                     onerror="this.src='https://marketing.kaizenmadeeasy.com/assets/images/Logo_blue.png'"
+                     data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">
+                <div class="featured-card-content">
+                    <div class="featured-card-title" data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">${this.escapeHtml(episode.title)}</div>
+                    <div class="featured-card-podcast">${this.escapeHtml(episode.podcastTitle)}</div>
+                    <div class="featured-card-date">${this.formatDate(episode.publishDate)}</div>
+                </div>
             </div>
         `).join('');
+        
+        // Re-initialize tooltips for new elements
+        setTimeout(() => this.addTooltipListeners(), 100);
     }
 
     displayLatestEpisodes() {
@@ -98,11 +193,14 @@ class PodcastApp {
 
         latestGrid.innerHTML = this.latestEpisodes.map(episode => `
             <div class="latest-card" onclick="app.playEpisode('${episode.id}')">
+                <div class="latest-card-title" data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">${this.escapeHtml(episode.title)}</div>
                 <div class="latest-card-channel">${this.escapeHtml(episode.podcastTitle)}</div>
-                <div class="latest-card-title">${this.escapeHtml(episode.title)}</div>
                 <div class="latest-card-date">${this.formatDate(episode.publishDate)}</div>
             </div>
         `).join('');
+        
+        // Re-initialize tooltips for new elements
+        setTimeout(() => this.addTooltipListeners(), 100);
     }
 
     filterEpisodes() {
@@ -117,7 +215,14 @@ class PodcastApp {
         // Reset to first page when filters change
         this.currentPage = 1;
 
-        this.filteredEpisodes = this.episodes.filter(episode => {
+        console.log('🔍 Filtering episodes:', {
+            totalEpisodes: this.allEpisodes.length,
+            searchTerm,
+            podcastValue,
+            sortValue
+        });
+
+        this.filteredEpisodes = this.allEpisodes.filter(episode => {
             const matchesSearch = !searchTerm || 
                 episode.title.toLowerCase().includes(searchTerm) ||
                 episode.description.toLowerCase().includes(searchTerm) ||
@@ -127,6 +232,11 @@ class PodcastApp {
             const matchesTopic = true; // Removed topic filter
 
             return matchesSearch && matchesPodcast && matchesTopic;
+        });
+
+        console.log('🔍 Filtered episodes:', {
+            filteredCount: this.filteredEpisodes.length,
+            matches: this.filteredEpisodes.slice(0, 3).map(e => e.title)
         });
 
         this.sortEpisodes();
@@ -187,6 +297,9 @@ class PodcastApp {
         
         // Update bottom pagination
         this.updatePagination(filteredEpisodes.length, 'bottom');
+        
+        // Re-initialize tooltips for new elements
+        setTimeout(() => this.addTooltipListeners(), 100);
     }
 
     getFilteredEpisodes() {
@@ -208,8 +321,13 @@ class PodcastApp {
         const isWatchLater = this.isWatchLaterLocal(episode.id);
         
         episodeCard.innerHTML = `
-            ${episode.image ? `<img src="${episode.image}" alt="${this.escapeHtml(episode.title)}" class="podcast-image">` : ''}
-            <div class="podcast-title">${this.escapeHtml(episode.title)}</div>
+            <img src="${episode.image || 'https://marketing.kaizenmadeeasy.com/assets/images/Logo_blue.png'}" 
+                 alt="${this.escapeHtml(episode.title)}" 
+                 class="podcast-image" 
+                 onclick="app.playEpisode('${episode.id}')"
+                 onerror="this.src='https://marketing.kaizenmadeeasy.com/assets/images/Logo_blue.png'"
+                 data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">
+            <div class="podcast-title" data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">${this.escapeHtml(episode.title)}</div>
             <div class="podcast-channel">📻 ${this.escapeHtml(episode.podcastTitle)}</div>
             <div class="podcast-date">📅 ${this.formatDate(episode.publishDate)}</div>
             <div class="podcast-links">
@@ -236,11 +354,6 @@ class PodcastApp {
                 <button class="admin-btn-small" onclick="app.deleteEpisode('${episode.id}')">Delete</button>
             </div>
         `;
-        
-        // Debug: Check if admin controls should be visible
-        if (this.adminMode) {
-            console.log('🔧 Admin mode ON - controls should be visible for episode:', episode.title);
-        }
         
         return episodeCard;
     }
@@ -632,7 +745,6 @@ class PodcastApp {
         if (adminPassword === 'kaizen2024') {
             adminPanel.classList.add('active');
             this.adminMode = true; // Set admin mode flag
-            console.log('👨‍💼 Admin panel activated with password');
             
             // Show featured admin controls
             const featuredAdminControls = document.getElementById('featuredAdminControls');
@@ -868,8 +980,6 @@ class PodcastApp {
         
         // Show player
         this.showAudioPlayer();
-        
-        console.log(`Playing episode: ${episode.title}`);
     }
 
     addToPlaylist(episodeId) {
@@ -936,11 +1046,11 @@ class PodcastApp {
         });
 
         this.audioPlayer.addEventListener('loadstart', () => {
-            console.log('Audio loading...');
+            // Audio loading
         });
 
         this.audioPlayer.addEventListener('canplay', () => {
-            console.log('Audio ready to play');
+            // Audio ready to play
         });
     }
 
@@ -1033,11 +1143,11 @@ setupAudioPlayerEvents() {
         });
 
         this.audioPlayer.addEventListener('loadstart', () => {
-            console.log('Audio loading...');
+            // Audio loading
         });
 
         this.audioPlayer.addEventListener('canplay', () => {
-            console.log('Audio ready to play');
+            // Audio ready to play
         });
     }
 
@@ -1081,6 +1191,9 @@ playFromPlaylist(index) {
         this.audioPlayer.play();
         this.updatePlayerUI(episode);
         this.updatePlaylistUI();
+        
+        // Show the audio player UI
+        this.showAudioPlayer();
     }
 
     showAudioPlayer() {
@@ -1377,7 +1490,6 @@ playFromPlaylist(index) {
                     // Use password-only authentication
                     this.toggleAdminMode();
                     localStorage.setItem('kme-admin-password', 'kaizen2024');
-                    console.log('👨‍💼 Admin panel activated with password');
                 }
             }
             

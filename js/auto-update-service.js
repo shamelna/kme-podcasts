@@ -13,8 +13,6 @@ class AutoUpdateService {
     }
 
     async init() {
-        console.log('🔄 Auto-Update Service initialized (development mode - auto-updates disabled)');
-        
         // Monitor online/offline status
         window.addEventListener('online', () => {
             this.isOnline = true;
@@ -32,8 +30,6 @@ class AutoUpdateService {
         
         // Display initial stats
         this.getUpdateStats();
-        
-        console.log('🔄 Auto-Update Service ready (manual sync only)');
     }
 
     startPeriodicUpdates() {
