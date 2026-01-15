@@ -215,10 +215,14 @@ h3 {
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: var(--border-radius);
+    border-radius: var(--border-radius-lg);
     padding: 1.5rem;
-    transition: var(--transition);
     cursor: pointer;
+    display: flex;
+    flex-direction: row;
+    gap: 1rem;
+    align-items: flex-start;
+    transition: var(--transition);
 }
 
 .featured-card:hover {
@@ -227,17 +231,33 @@ h3 {
     box-shadow: var(--shadow-md);
 }
 
+.featured-card-image {
+    width: 60px;
+    height: 60px;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: var(--border-radius);
+    background: rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}
+
+.featured-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 0;
+}
+
 .featured-card-title {
     font-size: 1.1rem;
     font-weight: 600;
-    margin-bottom: 0.5rem;
     line-height: 1.3;
 }
 
 .featured-card-podcast {
     font-size: 0.9rem;
     opacity: 0.9;
-    margin-bottom: 0.5rem;
 }
 
 .featured-card-date {
@@ -273,8 +293,9 @@ h3 {
 
 .latest-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 1rem;
+    width: 100%;
 }
 
 .latest-card {
@@ -282,8 +303,12 @@ h3 {
     border-left: 4px solid var(--secondary-color);
     padding: 1rem;
     border-radius: var(--border-radius);
-    transition: var(--transition);
     cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-height: 120px;
 }
 
 .latest-card:hover {
@@ -296,7 +321,7 @@ h3 {
     font-size: 0.85rem;
     color: var(--secondary-color);
     font-weight: 600;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
 }
 
 .latest-card-title {
@@ -304,16 +329,11 @@ h3 {
     color: var(--text-color);
     font-weight: 500;
     line-height: 1.3;
-    margin-bottom: 0.5rem;
+    flex: 1;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    display: -moz-box;
-    -moz-line-clamp: 2;
-    -moz-box-orient: vertical;
-    line-clamp: 2;
-    box-orient: vertical;
 }
 
 .latest-card-date {
@@ -507,10 +527,60 @@ h3 {
 
 .podcast-image {
     width: 100%;
-    height: 200px;
+    aspect-ratio: 1 / 1;
     object-fit: cover;
     border-radius: var(--border-radius);
     margin-bottom: 1rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.podcast-image:hover {
+    transform: scale(1.02);
+    box-shadow: var(--shadow-md);
+}
+
+/* Tooltip styling - Higher specificity (only for main episodes and latest) */
+div.podcast-card .podcast-image[data-description]:hover,
+div.podcast-card .podcast-title[data-description]:hover,
+div.latest-card .latest-card-title[data-description]:hover {
+    position: relative !important;
+}
+
+div.podcast-card .podcast-image[data-description]:hover::after,
+div.podcast-card .podcast-title[data-description]:hover::after,
+div.latest-card .latest-card-title[data-description]:hover::after {
+    content: attr(data-description) !important;
+    position: absolute !important;
+    bottom: calc(100% + 10px) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    background: #333 !important;
+    color: #fff !important;
+    padding: 0.5rem 0.75rem !important;
+    border-radius: 6px !important;
+    font-size: 0.8rem !important;
+    white-space: normal !important;
+    max-width: 300px !important;
+    word-wrap: break-word !important;
+    z-index: 10000 !important;
+    opacity: 1 !important;
+    animation: fadeIn 0.3s ease forwards !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+    line-height: 1.3 !important;
+    visibility: visible !important;
+    pointer-events: none !important;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
 }
 
 .podcast-title {
@@ -1956,15 +2026,12 @@ a:focus {
     bottom: 0;
     left: 0;
     width: 100%;
-    height: 80px;
     background: var(--white);
     border-top: 1px solid var(--gray-border);
     box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
     z-index: 1000;
-    display: none;
     opacity: 0;
-    transition: all 0.3s ease;
-    transform: translateY(100%);
+    transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
 .audio-player-container.active {
@@ -1974,26 +2041,18 @@ a:focus {
 }
 
 .player-main {
-    flex: 1;
     display: flex;
     align-items: center;
+    width: 80%;
+    margin: 0 auto;
     padding: 0 1rem;
-    gap: 1rem;
-}
-
-#audioPlayer {
-    flex: 1;
-    max-width: 400px;
-    height: 40px;
-    background: var(--gray-light);
-    border-radius: var(--border-radius);
-    outline: none;
 }
 
 .player-info {
-    flex: 2;
+    flex: 0 0 auto;
     min-width: 200px;
-    max-width: 400px;
+    max-width: 300px;
+    margin-right: 1rem;
 }
 
 .player-title {
@@ -2015,11 +2074,21 @@ a:focus {
     text-overflow: ellipsis;
 }
 
+#audioPlayer {
+    flex: 1;
+    height: 40px;
+    background: var(--gray-light);
+    border-radius: var(--border-radius);
+    outline: none;
+    min-width: 200px;
+}
+
 .player-controls {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding-right: 1rem;
+    flex-shrink: 0;
+    margin-left: 1rem;
 }
 
 .player-control-btn {
@@ -2184,10 +2253,12 @@ a:focus {
     padding: 0.75rem;
     border-bottom: 1px solid var(--gray-border);
     cursor: pointer;
-    transition: all 0.3s ease;
     display: flex;
     align-items: center;
     gap: 1rem;
+    color: var(--text-color);
+    background: var(--white);
+    transition: var(--transition);
 }
 
 .playlist-item:hover {
@@ -2209,11 +2280,16 @@ a:focus {
     margin-bottom: 0.25rem;
     line-height: 1.3;
     font-size: 0.85rem;
+    color: inherit;
 }
 
 .playlist-item-podcast {
     font-size: 0.75rem;
     color: var(--text-light);
+}
+
+.playlist-item.playing .playlist-item-podcast {
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .playlist-item-remove {
@@ -2492,7 +2568,7 @@ a:focus {
 @media (max-width: 768px) {
     .audio-player-container {
         height: auto !important;
-        min-height: 100px !important;
+        min-height: 120px !important;
         padding: 1rem !important;
         bottom: 0 !important;
         left: 0 !important;
@@ -2504,18 +2580,19 @@ a:focus {
     }
     
     .player-main {
-        flex-direction: row !important;
-        align-items: center !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
         gap: 1rem !important;
-        padding: 0 1rem !important;
-        flex-wrap: wrap !important;
-        justify-content: space-between !important;
+        padding: 0 !important;
+        flex-wrap: nowrap !important;
+        justify-content: flex-start !important;
     }
     
     .player-info {
-        flex: 2 !important;
-        min-width: 150px !important;
-        text-align: left !important;
+        flex: none !important;
+        min-width: auto !important;
+        text-align: center !important;
+        padding: 0 1rem !important;
     }
     
     .player-title {
@@ -2544,78 +2621,98 @@ a:focus {
     .audio-player-controls {
         display: flex !important;
         align-items: center !important;
-        gap: 0.75rem !important;
-        flex-wrap: nowrap !important;
-        margin-top: 0.5rem !important;
+        gap: 0.5rem !important;
+        flex-wrap: wrap !important;
+        margin-top: 0 !important;
+        padding: 0 1rem !important;
+        justify-content: center !important;
     }
     
     #audioPlayer {
         width: 100% !important;
-        height: 50px !important;
-        min-height: 50px !important;
+        height: 54px !important;
+        min-height: 54px !important;
         background: var(--gray-light) !important;
         border: 1px solid var(--gray-border) !important;
         border-radius: 8px !important;
         display: block !important;
+        margin: 0 1rem !important;
+        order: 2 !important;
     }
     
-    /* Force native controls to be visible and styled */
+    /* Force native audio controls to be visible on mobile */
+    #audioPlayer[controls] {
+        display: block !important;
+        width: 100% !important;
+        height: 54px !important;
+    }
+    
+    /* Ensure progress bar is visible across browsers */
     #audioPlayer::-webkit-media-controls-panel {
         display: flex !important;
         align-items: center !important;
         width: 100% !important;
-        height: 50px !important;
-        background: transparent !important;
-        padding: 0 1rem !important;
+        height: 54px !important;
+        background: var(--gray-light) !important;
+        padding: 0 8px !important;
+        border-radius: 8px !important;
     }
     
     #audioPlayer::-webkit-media-controls-play-pause-button,
     #audioPlayer::-webkit-media-controls-play-button {
-        background-color: var(--primary-color) !important;
+        background-color: #007bb5 !important;
         border-radius: 50% !important;
-        width: 40px !important;
-        height: 40px !important;
-        min-width: 40px !important;
-        order: 1 !important;
-    }
-    
-    #audioPlayer::-webkit-media-controls-timeline-container {
-        flex: 1 !important;
-        height: 6px !important;
-        background: var(--gray-light) !important;
-        border-radius: 3px !important;
-        margin: 0 0.5rem !important;
+        width: 36px !important;
+        height: 36px !important;
+        min-width: 36px !important;
+        margin-right: 8px !important;
     }
     
     #audioPlayer::-webkit-media-controls-timeline {
-        height: 6px !important;
-        background: var(--primary-color) !important;
-        border-radius: 3px !important;
-        outline: none !important;
+        flex: 1 !important;
+        height: 4px !important;
+        background: #ddd !important;
+        border-radius: 2px !important;
+        min-width: 100px !important;
     }
     
     #audioPlayer::-webkit-media-controls-current-time-display,
     #audioPlayer::-webkit-media-controls-time-remaining-display {
-        font-size: 0.8rem !important;
+        font-size: 11px !important;
         color: var(--text-color) !important;
-        min-width: 60px !important;
-        font-weight: 500 !important;
+        min-width: 45px !important;
+        margin: 0 4px !important;
     }
     
     #audioPlayer::-webkit-media-controls-volume-slider-container {
         display: none !important; /* Hide volume on mobile */
     }
     
+    /* Firefox support */
+    #audioPlayer::-moz-range-track {
+        height: 4px !important;
+        background: #ddd !important;
+        border-radius: 2px !important;
+    }
+    
+    #audioPlayer::-moz-range-thumb {
+        width: 12px !important;
+        height: 12px !important;
+        background: #007bb5 !important;
+        border: none !important;
+        border-radius: 50% !important;
+    }
+    
     .player-control-btn {
         font-size: 0.8rem !important;
-        padding: 0.5rem 0.75rem !important;
+        padding: 0.4rem 0.6rem !important;
         min-width: auto !important;
         white-space: nowrap !important;
         background: var(--primary-color) !important;
         color: var(--white) !important;
         border: none !important;
         border-radius: 6px !important;
-        order: 2 !important;
+        order: 1 !important;
     }
     
     .player-close-btn {
