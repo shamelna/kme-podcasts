@@ -20,11 +20,20 @@ self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
-                return cache.addAll(CACHE_URLS.map(url => new Request(url, { cache: 'reload' })));
+                console.log('📦 Caching files:', CACHE_URLS);
+                return cache.addAll(CACHE_URLS.map(url => new Request(url, { cache: 'reload' })))
+                    .catch(error => {
+                        console.error('❌ Cache add failed:', error);
+                        // Continue installation even if caching fails
+                    });
             })
             .then(() => {
-                console.log('✅ Service Worker installed and cached');
+                console.log('✅ Service Worker installed');
                 self.skipWaiting();
+            })
+            .catch(error => {
+                console.error('❌ Cache open failed:', error);
+                // Continue installation even if cache fails
             })
     );
 });
@@ -73,12 +82,39 @@ self.addEventListener('fetch', (event) => {
                         return response;
                     }
                     
-                    return fetch(request).then(networkResponse => {
-                        // Cache the new response
-                        return caches.open(CACHE_NAME).then(cache => {
-                            return cache.put(request, networkResponse.clone());
+                    // If not in cache, fetch from network
+                    return fetch(request)
+                        .then(networkResponse => {
+                            // Try to cache the new response
+                            if (networkResponse.ok && networkResponse.type === 'basic') {
+                                return caches.open(CACHE_NAME).then(cache => {
+                                    return cache.put(request, networkResponse.clone())
+                                        .then(() => networkResponse)
+                                        .catch(cacheError => {
+                                            console.error('❌ Cache put failed:', cacheError);
+                                            // Still return network response even if caching fails
+                                        });
+                                }).catch(cacheError => {
+                                    console.error('❌ Cache open failed:', cacheError);
+                                    // Still return network response even if caching fails
+                                });
+                            } else {
+                                return networkResponse;
+                            }
+                        })
+                        .catch(networkError => {
+                            console.error('❌ Network fetch failed:', networkError);
+                            // Return a basic error response
+                            return new Response('Network error', { 
+                                status: 500,
+                                statusText: 'Network fetch failed'
+                            });
                         });
-                    }).then(() => networkResponse);
+                })
+                .catch(cacheError => {
+                    console.error('❌ Cache match failed:', cacheError);
+                    // If cache fails, try network
+                    return fetch(request);
                 })
         );
     }
