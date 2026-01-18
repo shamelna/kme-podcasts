@@ -47,8 +47,22 @@ class PodcastSyncService {
                 return { success: true, episodesCount: 0 };
             }
             
-            // Save episodes to database
-            const episodePromises = episodesData.episodes.map(async (episode) => {
+            // Save episodes to database (check for duplicates)
+            const existingEpisodes = await this.db.getEpisodesByPodcast(podcastData.id);
+            const existingEpisodeIds = new Set(existingEpisodes.map(ep => ep.id));
+            
+            const newEpisodes = episodesData.episodes.filter(episode => 
+                !existingEpisodeIds.has(episode.id)
+            );
+            
+            console.log(`Found ${existingEpisodes.length} existing episodes, ${newEpisodes.length} new episodes to add`);
+            
+            if (newEpisodes.length === 0) {
+                console.log(`No new episodes to sync for ${podcastData.title}`);
+                return { success: true, episodesCount: 0, newEpisodes: 0 };
+            }
+            
+            const episodePromises = newEpisodes.map(async (episode) => {
                 return await this.db.saveEpisode({
                     id: episode.id,
                     title: episode.title,
@@ -70,8 +84,8 @@ class PodcastSyncService {
 
             await Promise.all(episodePromises);
             
-            console.log(`Successfully synced ${episodesData.episodes.length} episodes for ${podcastData.title}`);
-            return { success: true, episodesCount: episodesData.episodes.length };
+            console.log(`Successfully synced ${newEpisodes.length} new episodes for ${podcastData.title}`);
+            return { success: true, episodesCount: newEpisodes.length, newEpisodes: newEpisodes.length };
             
         } catch (error) {
             console.error(`Error syncing podcast ${podcastId}:`, error);

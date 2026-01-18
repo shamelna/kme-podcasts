@@ -44,21 +44,22 @@ class PodcastApp {
         tooltip.id = 'custom-tooltip';
         tooltip.style.cssText = `
             position: absolute;
-            background: #0f456c;
-            color: #fff;
-            padding: 0.5rem 0.75rem;
-            border-radius: 6px;
-            font-size: 0.8rem;
+            background: rgba(18, 56, 91, 0.9);
+            color: #ffffff;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
             white-space: normal;
-            max-width: 300px;
+            max-width: 280px;
             word-wrap: break-word;
             z-index: 10000;
             opacity: 0;
             transition: opacity 0.3s ease;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            line-height: 1.3;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            line-height: 1.4;
             pointer-events: none;
             visibility: hidden;
+            backdrop-filter: blur(4px);
         `;
         document.body.appendChild(tooltip);
 
@@ -82,16 +83,34 @@ class PodcastApp {
         if (!tooltip) return;
 
         const description = event.target.getAttribute('data-description');
-        if (!description) return;
+        const secondaryDescription = event.target.getAttribute('data-secondary-description');
+        
+        if (!description && !secondaryDescription) return;
 
-        tooltip.textContent = description;
+        // Only show main description (remove episode name/podcast info)
+        let tooltipContent = '';
+        if (description) {
+            tooltipContent = `<div class="tooltip-content">${description}</div>`;
+        }
+        
+        tooltip.innerHTML = tooltipContent;
+        
+        // Simple, direct positioning approach
+        const rect = event.target.getBoundingClientRect();
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+        
+        // Position tooltip directly above element with 2px gap
+        const tooltipTop = rect.top + scrollTop - tooltip.offsetHeight - 2;
+        const tooltipLeft = rect.left + scrollLeft + (rect.width / 2) - (tooltip.offsetWidth / 2);
+        
+        // Apply position directly
+        tooltip.style.position = 'absolute';
+        tooltip.style.top = tooltipTop + 'px';
+        tooltip.style.left = tooltipLeft + 'px';
         tooltip.style.opacity = '1';
         tooltip.style.visibility = 'visible';
-
-        // Position tooltip
-        const rect = event.target.getBoundingClientRect();
-        tooltip.style.left = rect.left + (rect.width / 2) - (tooltip.offsetWidth / 2) + 'px';
-        tooltip.style.top = rect.top - tooltip.offsetHeight - 10 + 'px';
+        tooltip.style.zIndex = '10000';
     }
 
     // Hide tooltip
@@ -344,6 +363,9 @@ class PodcastApp {
                 <button class="podcast-link watchlater-btn ${isWatchLater ? 'watching' : ''}" onclick="app.toggleWatchLater('${episode.id}')" title="${isWatchLater ? 'Remove from' : 'Add to'} Watch Later">
                     <span class="btn-icon">${isWatchLater ? '⏰' : '🕐'}</span>
                     ${isWatchLater ? 'Watching' : 'Watch Later'}
+                </button>
+                <button class="podcast-link share-btn" onclick="app.shareEpisode('${episode.id}')" title="Share Episode">
+                    <span class="btn-icon">🔗</span> Share
                 </button>
             </div>
             <div class="admin-controls-card ${this.adminMode ? 'active' : ''}" id="admin-${episode.id}">
@@ -949,13 +971,33 @@ class PodcastApp {
 
     // Audio Player Methods
     playEpisode(episodeId) {
+        console.log('🎵 Attempting to play episode:', episodeId);
+        console.log('📊 Available episodes count:', {
+            allEpisodes: this.allEpisodes?.length || 0,
+            filteredEpisodes: this.filteredEpisodes?.length || 0,
+            featuredEpisodes: this.featuredEpisodes?.length || 0,
+            latestEpisodes: this.latestEpisodes?.length || 0
+        });
+        
         // Look for episode in all episodes arrays
         const episode = this.allEpisodes.find(e => e.id === episodeId) || 
                       this.filteredEpisodes.find(e => e.id === episodeId) ||
                       this.featuredEpisodes.find(e => e.id === episodeId) ||
                       this.latestEpisodes.find(e => e.id === episodeId);
         
+        console.log('🔍 Found episode:', episode ? {
+            id: episode.id,
+            title: episode.title,
+            hasAudio: !!episode.audioUrl,
+            podcastTitle: episode.podcastTitle
+        } : 'NOT FOUND');
+        
         if (!episode || !episode.audioUrl) {
+            console.error('❌ Episode not available for playback:', {
+                found: !!episode,
+                hasAudio: episode?.audioUrl,
+                episodeId: episodeId
+            });
             alert('Episode not available for playback');
             return;
         }
@@ -973,13 +1015,70 @@ class PodcastApp {
 
         // Load and play the episode
         this.audioPlayer.src = episode.audioUrl;
-        this.audioPlayer.play();
+        
+        // Handle autoplay policy - only play if user has interacted with page
+        const playPromise = this.audioPlayer.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                if (error.name === 'NotAllowedError') {
+                    console.log('🔇 Autoplay blocked - waiting for user interaction');
+                    // Show a message to user to click play
+                    this.showAutoplayMessage(episode);
+                } else {
+                    console.error('❌ Audio playback error:', error);
+                    this.showNotification('Failed to play episode', 'error');
+                }
+            });
+        }
         
         // Update player UI
         this.updatePlayerUI(episode);
         
         // Show player
         this.showAudioPlayer();
+    }
+
+    // Show autoplay blocked message
+    showAutoplayMessage(episode) {
+        const message = document.createElement('div');
+        message.className = 'autoplay-message';
+        message.innerHTML = `
+            <div class="autoplay-content">
+                <div class="autoplay-icon">🔇</div>
+                <div class="autoplay-text">
+                    <strong>Autoplay Blocked</strong><br>
+                    Browser blocked autoplay. Click the play button to start:<br>
+                    <em>${this.escapeHtml(episode.title)}</em>
+                </div>
+                <button class="autoplay-play-btn" onclick="this.parentElement.parentElement.remove(); document.getElementById('audioPlayer').play();">
+                    ▶️ Play Now
+                </button>
+                <button class="autoplay-close-btn" onclick="this.parentElement.parentElement.remove();">×</button>
+            </div>
+        `;
+        
+        message.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            z-index: 10000;
+            max-width: 400px;
+            width: 90%;
+        `;
+        
+        document.body.appendChild(message);
+        
+        // Auto-remove after 8 seconds
+        setTimeout(() => {
+            if (message.parentNode) {
+                message.remove();
+            }
+        }, 8000);
     }
 
     addToPlaylist(episodeId) {
@@ -1444,23 +1543,320 @@ playFromPlaylist(index) {
         notification.innerHTML = `
             <div class="update-content">
                 <span class="update-icon">📊</span>
-                <div class="update-text">
-                    <strong>${count} updates</strong><br>
-                    <small>${message}</small>
-                </div>
-                <button class="update-close" onclick="this.parentElement.remove()">×</button>
+                <span class="update-message">${message}</span>
+                <button class="update-close" onclick="this.parentElement.parentElement.remove()">×</button>
             </div>
+        `;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => notification.remove(), 8000);
+    }
+
+    // Share episode functionality
+    shareEpisode(episodeId) {
+        const episode = this.allEpisodes.find(ep => ep.id === episodeId);
+        if (!episode) {
+            console.error('Episode not found:', episodeId);
+            console.log('Available episodes:', this.allEpisodes.map(ep => ep.id).slice(0, 5));
+            return;
+        }
+
+        // Create shareable URL with episode parameter
+        const shareUrl = `${window.location.origin}${window.location.pathname}?episode=${encodeURIComponent(episodeId)}`;
+        
+        // Copy to clipboard
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                this.showShareNotification('Episode link copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy link:', err);
+                this.fallbackShare(shareUrl, episode);
+            });
+        } else {
+            // Fallback for older browsers
+            this.fallbackShare(shareUrl, episode);
+        }
+    }
+
+    // Fallback share method
+    fallbackShare(shareUrl, episode) {
+        const textArea = document.createElement('textarea');
+        textArea.value = shareUrl;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            document.execCommand('copy');
+            this.showShareNotification('Episode link copied to clipboard!');
+        } catch (err) {
+            console.error('Failed to copy link:', err);
+            // Show dialog with link as last resort
+            this.showShareDialog(shareUrl, episode);
+        } finally {
+            document.body.removeChild(textArea);
+        }
+    }
+
+    // Show share notification
+    showShareNotification(message) {
+        const notification = document.createElement('div');
+        notification.className = 'share-notification';
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #12385b;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 10000;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s ease;
         `;
         
         document.body.appendChild(notification);
         
-        // Auto-remove after 6 seconds
+        // Animate in
         setTimeout(() => {
-            if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
-            }
-        }, 6000);
+            notification.style.opacity = '1';
+            notification.style.transform = 'translateY(0)';
+        }, 100);
+        
+        // Remove after 3 seconds
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            notification.style.transform = 'translateY(-20px)';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
     }
+
+    // Show share dialog for manual copy
+    showShareDialog(shareUrl, episode) {
+        const dialog = document.createElement('div');
+        dialog.className = 'share-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="share-dialog">
+                <div class="share-dialog-header">
+                    <h3>Share Episode</h3>
+                    <button class="share-dialog-close" onclick="this.closest('.share-dialog-overlay').remove()">×</button>
+                </div>
+                <div class="share-dialog-content">
+                    <p><strong>${this.escapeHtml(episode.title)}</strong></p>
+                    <p>from ${this.escapeHtml(episode.podcastTitle)}</p>
+                    <div class="share-url-container">
+                        <input type="text" readonly value="${shareUrl}" id="shareUrlInput">
+                        <button onclick="document.getElementById('shareUrlInput').select(); document.execCommand('copy'); this.textContent='Copied!'; setTimeout(() => this.textContent='Copy', 2000)">Copy</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        dialog.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        `;
+        
+        const dialogContent = dialog.querySelector('.share-dialog');
+        dialogContent.style.cssText = `
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        `;
+        
+        document.body.appendChild(dialog);
+        
+        // Close on overlay click
+        dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) {
+                dialog.remove();
+            }
+        });
+    }
+
+    // Function to remove duplicate episodes from database
+    async removeDuplicateEpisodes() {
+        try {
+            console.log('🔍 Starting advanced duplicate episode cleanup...');
+            const statusEl = document.getElementById('syncStatus');
+            if (statusEl) {
+                statusEl.textContent = 'Finding and removing duplicate episodes...';
+                statusEl.className = 'sync-status';
+            }
+
+            // Get all episodes from database
+            const allEpisodes = await podcastDB.getAllEpisodes();
+            console.log(`📊 Found ${allEpisodes.length} total episodes in database`);
+
+            // Advanced duplicate detection
+            const duplicates = [];
+            const seenEpisodes = new Map();
+            
+            // Check for duplicates by multiple criteria
+            allEpisodes.forEach((episode, index) => {
+                const duplicateKey = this.createDuplicateKey(episode);
+                
+                if (seenEpisodes.has(duplicateKey)) {
+                    // Found a duplicate
+                    const originalEpisode = seenEpisodes.get(duplicateKey);
+                    duplicates.push({
+                        key: duplicateKey,
+                        original: originalEpisode,
+                        duplicate: episode,
+                        originalIndex: originalEpisode.index,
+                        duplicateIndex: index
+                    });
+                } else {
+                    // First time seeing this episode
+                    seenEpisodes.set(duplicateKey, {
+                        ...episode,
+                        index: index
+                    });
+                }
+            });
+
+            console.log(`🔍 Found ${duplicates.length} potential duplicates by content analysis`);
+
+            if (duplicates.length === 0) {
+                if (statusEl) {
+                    statusEl.textContent = 'No duplicate episodes found';
+                }
+                this.showNotification('No duplicate episodes found in database');
+                return;
+            }
+
+            // Remove duplicates (keep the first one found)
+            let removedCount = 0;
+            const BATCH_SIZE = 400; // Firebase limit is around 500 operations
+            
+            // Process duplicates in batches to avoid Firebase transaction size limits
+            const duplicateBatches = [];
+            for (let i = 0; i < duplicates.length; i += BATCH_SIZE) {
+                duplicateBatches.push(duplicates.slice(i, i + BATCH_SIZE));
+            }
+            
+            console.log(`🔄 Processing ${duplicateBatches.length} batches of up to ${BATCH_SIZE} duplicates each`);
+            
+            for (let batchIndex = 0; batchIndex < duplicateBatches.length; batchIndex++) {
+                const batch = podcastDB.db.batch();
+                const batchDuplicates = duplicateBatches[batchIndex];
+                
+                console.log(`📦 Processing batch ${batchIndex + 1}/${duplicateBatches.length} with ${batchDuplicates.length} duplicates`);
+                
+                for (const duplicate of batchDuplicates) {
+                    // Remove the duplicate episode (keep the original)
+                    console.log(`🗑️ Removing duplicate: "${duplicate.duplicate.title}" from ${duplicate.duplicate.podcastTitle}`);
+                    console.log(`   Keeping: "${duplicate.original.title}" (index ${duplicate.originalIndex})`);
+                    console.log(`   Removing: "${duplicate.duplicate.title}" (index ${duplicate.duplicateIndex})`);
+                    
+                    batch.delete(podcastDB.db.collection('episodes').doc(duplicate.duplicate.id));
+                    removedCount++;
+                }
+                
+                // Commit this batch
+                await batch.commit();
+                console.log(`✅ Batch ${batchIndex + 1} completed: removed ${batchDuplicates.length} duplicates`);
+                
+                // Small delay between batches to avoid overwhelming Firebase
+                if (batchIndex < duplicateBatches.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            }
+            
+            console.log(`✅ Successfully removed ${removedCount} duplicate episodes`);
+            
+            if (statusEl) {
+                statusEl.textContent = `Removed ${removedCount} duplicate episodes`;
+                statusEl.className = 'sync-status';
+            }
+
+            this.showNotification(`Successfully removed ${removedCount} duplicate episodes from database`);
+            
+            // Reload data to refresh the display
+            await this.loadData();
+            
+        } catch (error) {
+            console.error('❌ Error removing duplicate episodes:', error);
+            const statusEl = document.getElementById('syncStatus');
+            if (statusEl) {
+                statusEl.textContent = 'Failed to remove duplicates';
+                statusEl.className = 'sync-status error';
+            }
+            this.showNotification('Failed to remove duplicate episodes', 'error');
+        }
+    }
+
+    // Create a comprehensive key for duplicate detection
+    createDuplicateKey(episode) {
+        // Normalize title for comparison (remove extra spaces, lowercase)
+        const normalizedTitle = episode.title.toLowerCase().trim().replace(/\s+/g, ' ');
+        
+        // Create key from multiple attributes for better matching
+        const keyParts = [
+            normalizedTitle,
+            episode.podcastTitle?.toLowerCase().trim() || '',
+            episode.audioUrl?.trim() || '',
+            // Use first 100 characters of description for comparison
+            (episode.description || '').substring(0, 100).toLowerCase().replace(/\s+/g, ' ')
+        ];
+        
+        return keyParts.join('|');
+    }
+
+    // Show notification for duplicate cleanup
+    showNotification(message, type = 'success') {
+        const notification = document.createElement('div');
+        notification.className = 'duplicate-cleanup-notification';
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${type === 'error' ? '#de1738' : '#12385b'};
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 10000;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s ease;
+            max-width: 300px;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => {
+            notification.style.opacity = '1';
+            notification.style.transform = 'translateY(0)';
+        }, 100);
+        
+        // Remove after 4 seconds
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            notification.style.transform = 'translateY(-20px)';
+            setTimeout(() => notification.remove(), 300);
+        }, 4000);
+    }
+
     setupEventListeners() {
         const searchInput = document.getElementById('searchInput');
         const podcastFilter = document.getElementById('podcastFilter');
@@ -1485,14 +1881,38 @@ playFromPlaylist(index) {
             // Ctrl+Shift+A to toggle admin panel
             if (e.ctrlKey && e.shiftKey && e.key === 'A') {
                 e.preventDefault();
-                const password = prompt('Enter admin password:');
-                if (password === 'kaizen2024') {
-                    // Use password-only authentication
+                
+                // Check if already in admin mode
+                if (this.adminMode) {
+                    console.log('👨‍💼 Admin mode disabled');
+                    this.adminMode = false;
                     this.toggleAdminMode();
-                    localStorage.setItem('kme-admin-password', 'kaizen2024');
+                    this.showNotification('Admin mode disabled');
+                } else {
+                    const password = prompt('Enter admin password:');
+                    if (password === 'kaizen2024') {
+                        // Use password-only authentication
+                        this.toggleAdminMode();
+                        localStorage.setItem('kme-admin-password', 'kaizen2024');
+                        this.adminMode = true;
+                        console.log('👨‍💼 Admin mode enabled');
+                        this.showNotification('Admin mode enabled');
+                    } else {
+                        console.log('❌ Incorrect admin password');
+                        this.showNotification('Incorrect admin password', 'error');
+                    }
                 }
             }
             
+            // Debug: Check current admin status with Ctrl+Shift+D
+            if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+                e.preventDefault();
+                console.log('🔍 Current admin status:', {
+                    adminMode: this.adminMode,
+                    hasPassword: !!localStorage.getItem('kme-admin-password')
+                });
+                alert(`Admin Mode: ${this.adminMode ? 'ENABLED' : 'DISABLED'}\nPassword Stored: ${localStorage.getItem('kme-admin-password') ? 'YES' : 'NO'}`);
+            }
         });
     }
 }
@@ -1504,6 +1924,32 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Make app globally available for inline event handlers
     window.app = app;
+    
+    // Check for episode parameter in URL and play if found
+    const urlParams = new URLSearchParams(window.location.search);
+    const episodeId = urlParams.get('episode');
+    if (episodeId) {
+        // Decode the episode ID properly
+        const decodedEpisodeId = decodeURIComponent(episodeId);
+        console.log('🎵 Found episode parameter:', decodedEpisodeId);
+        
+        // Wait a bit for episodes to load, then play the episode
+        setTimeout(() => {
+            if (app.allEpisodes && app.allEpisodes.length > 0) {
+                app.playEpisode(decodedEpisodeId);
+            } else {
+                // If episodes aren't loaded yet, wait for them
+                const checkEpisodes = setInterval(() => {
+                    if (app.allEpisodes && app.allEpisodes.length > 0) {
+                        clearInterval(checkEpisodes);
+                        app.playEpisode(decodedEpisodeId);
+                    }
+                }, 500);
+                // Stop checking after 10 seconds
+                setTimeout(() => clearInterval(checkEpisodes), 10000);
+            }
+        }, 1000);
+    }
     
     // Add pulse animation
     const style = document.createElement('style');
