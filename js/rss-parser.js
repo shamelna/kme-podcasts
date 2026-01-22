@@ -405,21 +405,21 @@ class RSSFeedParser {
         const title = this.getElementText(item, 'title') || '';
         const pubDate = this.getElementText(item, 'pubDate') || '';
         const guid = this.getElementText(item, 'guid') || '';
+        const audioUrl = this.extractAudioUrl(item) || '';
         
-        // Create a truly unique ID using timestamp and random components
-        const timestamp = Date.now();
-        const random = Math.random().toString(36).substr(2, 9);
-        const uniqueString = `${podcastId}_${title}_${pubDate}_${guid}_${timestamp}_${random}`;
+        // Create a stable, deterministic ID using only episode content
+        // No timestamp or random values - same episode always gets same ID
+        const stableString = `${podcastId}_${title}_${pubDate}_${guid}_${audioUrl}`;
         
         // Use a simple hash-like approach for consistency
         let hash = 0;
-        for (let i = 0; i < uniqueString.length; i++) {
-            const char = uniqueString.charCodeAt(i);
+        for (let i = 0; i < stableString.length; i++) {
+            const char = stableString.charCodeAt(i);
             hash = ((hash << 5) - hash) + char;
             hash = hash & hash; // Convert to 32-bit integer
         }
         
-        return 'rss_ep_' + Math.abs(hash).toString(36) + '_' + random;
+        return 'rss_ep_' + Math.abs(hash).toString(36);
     }
 
     // Safe encoding method that handles Unicode characters

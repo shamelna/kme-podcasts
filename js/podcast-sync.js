@@ -51,9 +51,35 @@ class PodcastSyncService {
             const existingEpisodes = await this.db.getEpisodesByPodcast(podcastData.id);
             const existingEpisodeIds = new Set(existingEpisodes.map(ep => ep.id));
             
-            const newEpisodes = episodesData.episodes.filter(episode => 
-                !existingEpisodeIds.has(episode.id)
-            );
+            // Additional duplicate detection by title + publish date combination
+            const existingEpisodeKeys = new Set(existingEpisodes.map(ep => {
+                const date = ep.publishDate;
+                // Convert to ISO string for consistent comparison
+                const dateStr = date.toDate ? date.toDate().toISOString() : 
+                              (date instanceof Date ? date.toISOString() : 
+                              new Date(date).toISOString());
+                return `${ep.title.toLowerCase().trim()}_${dateStr}`;
+            }));
+            
+            const newEpisodes = episodesData.episodes.filter(episode => {
+                // Primary check: by ID
+                if (existingEpisodeIds.has(episode.id)) {
+                    return false;
+                }
+                
+                // Secondary check: by title + publish date (catch-all for ID issues)
+                const episodeDate = episode.publishDate;
+                const episodeDateStr = episodeDate.toDate ? episodeDate.toDate().toISOString() : 
+                                     (episodeDate instanceof Date ? episodeDate.toISOString() : 
+                                     new Date(episodeDate).toISOString());
+                const episodeKey = `${episode.title.toLowerCase().trim()}_${episodeDateStr}`;
+                if (existingEpisodeKeys.has(episodeKey)) {
+                    console.log(`⚠️ Found duplicate by title+date: "${episode.title}"`);
+                    return false;
+                }
+                
+                return true;
+            });
             
             console.log(`Found ${existingEpisodes.length} existing episodes, ${newEpisodes.length} new episodes to add`);
             
@@ -67,7 +93,7 @@ class PodcastSyncService {
                     id: episode.id,
                     title: episode.title,
                     description: episode.description || '',
-                    publishDate: new Date(episode.publishDate),
+                    publishDate: episode.publishDate,
                     audioUrl: episode.audioUrl,
                     audioLength: episode.audioLength,
                     image: episode.image || podcastData.image,

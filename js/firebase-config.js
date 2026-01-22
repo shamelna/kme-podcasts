@@ -82,15 +82,25 @@ class PodcastDatabase {
         }
     }
 
-    async getEpisodesByPodcast(podcastId, limit = 50) {
+    async getEpisodesByPodcast(podcastId, limit = null) {
         try {
+            // First get all episodes for the podcast (without ordering to avoid index requirement)
             const snapshot = await this.db.collection('episodes')
                 .where('podcastId', '==', podcastId)
-                .orderBy('publishDate', 'desc')
-                .limit(limit)
                 .get();
             
-            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // Convert to array and sort manually
+            let episodes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            // Sort by publishDate manually (newest first)
+            episodes.sort((a, b) => {
+                const dateA = a.publishDate ? a.publishDate.toDate ? a.publishDate.toDate() : new Date(a.publishDate) : new Date(0);
+                const dateB = b.publishDate ? b.publishDate.toDate ? b.publishDate.toDate() : new Date(b.publishDate) : new Date(0);
+                return dateB - dateA;
+            });
+            
+            // Apply limit only if specified
+            return limit ? episodes.slice(0, limit) : episodes;
         } catch (error) {
             console.error('Error fetching episodes by podcast:', error);
             throw error;
