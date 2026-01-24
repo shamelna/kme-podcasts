@@ -54,53 +54,71 @@ self.addEventListener('activate', (event) => {
             );
         }).then(() => {
             console.log('✅ Service Worker activated');
+            return self.clients.claim();
         })
     );
 });
 
-// Fetch event - handle network requests
+// Periodic background sync event
+self.addEventListener('periodicsync', (event) => {
+    if (event.tag === 'podcast-sync') {
+        console.log('🔄 Background periodic sync triggered');
+        event.waitUntil(performBackgroundSync());
+    }
+});
+
+// Background sync event (manual trigger)
+self.addEventListener('sync', (event) => {
+    if (event.tag === 'podcast-sync') {
+        console.log('🔄 Background sync triggered');
+        event.waitUntil(performBackgroundSync());
+    }
+});
+
+// Fetch event - handle requests
 self.addEventListener('fetch', (event) => {
     const request = event.request;
     const url = new URL(request.url);
     
-    // Skip non-GET requests and external resources
-    if (request.method !== 'GET' || url.origin !== self.location.origin) {
-        return fetch(request);
+    // Handle sync requests from main app
+    if (url.pathname === '/sync') {
+        event.respondWith(handleSyncRequest(request));
+        return;
     }
     
-    // Handle different request types
-    if (url.pathname.includes('/sync-episodes')) {
-        handleSyncRequest(request);
-    } else if (url.pathname.includes('/check-updates')) {
-        handleUpdateCheck(request);
-    } else {
-        // Serve from cache, then network
+    // Handle update check requests
+    if (url.pathname === '/check-updates') {
+        event.respondWith(handleUpdateCheck(request));
+        return;
+    }
+    
+    // Cache strategy for other requests
+    if (request.method === 'GET') {
         event.respondWith(
             caches.match(request)
                 .then(response => {
                     if (response) {
+                        // Return cached version, but also fetch new version
+                        fetch(request).then(networkResponse => {
+                            if (networkResponse.ok) {
+                                caches.open(CACHE_NAME).then(cache => {
+                                    cache.put(request, networkResponse.clone());
+                                });
+                            }
+                        });
                         return response;
                     }
                     
                     // If not in cache, fetch from network
                     return fetch(request)
                         .then(networkResponse => {
-                            // Try to cache the new response
-                            if (networkResponse.ok && networkResponse.type === 'basic') {
-                                return caches.open(CACHE_NAME).then(cache => {
-                                    return cache.put(request, networkResponse.clone())
-                                        .then(() => networkResponse)
-                                        .catch(cacheError => {
-                                            console.error('❌ Cache put failed:', cacheError);
-                                            // Still return network response even if caching fails
-                                        });
-                                }).catch(cacheError => {
-                                    console.error('❌ Cache open failed:', cacheError);
-                                    // Still return network response even if caching fails
+                            if (networkResponse.ok) {
+                                const responseClone = networkResponse.clone();
+                                caches.open(CACHE_NAME).then(cache => {
+                                    cache.put(request, responseClone);
                                 });
-                            } else {
-                                return networkResponse;
                             }
+                            return networkResponse;
                         })
                         .catch(networkError => {
                             console.error('❌ Network fetch failed:', networkError);
@@ -111,14 +129,150 @@ self.addEventListener('fetch', (event) => {
                             });
                         });
                 })
-                .catch(cacheError => {
-                    console.error('❌ Cache match failed:', cacheError);
-                    // If cache fails, try network
-                    return fetch(request);
-                })
         );
     }
 });
+
+// Main background sync function
+async function performBackgroundSync() {
+    try {
+        console.log('🔄 Starting background sync...');
+        
+        // Import Firebase config in service worker context
+        const firebaseConfig = {
+            apiKey: "AIzaSyCFC1q7p6MSly1ua50n-XI3yO4NmFCUMj4",
+            authDomain: "kme-podcasts.firebaseapp.com",
+            projectId: "kme-podcasts",
+            storageBucket: "kme-podcasts.firebasestorage.app",
+            messagingSenderId: "635239448486",
+            appId: "1:635239448486:web:57c7f8c39009e3bb4cd967",
+            measurementId: "G-NSEVF9C6G1"
+        };
+        
+        // Initialize Firebase in service worker with retry logic
+        let db;
+        try {
+            const app = await import('https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js');
+            const firestore = await import('https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js');
+            
+            app.default.initializeApp(firebaseConfig);
+            db = firestore.default.firestore();
+            
+            // Test connection with timeout
+            await Promise.race([
+                db.collection('podcasts').limit(1).get(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Firebase timeout')), 5000))
+            ]);
+            
+            console.log('✅ Firebase connection successful');
+        } catch (firebaseError) {
+            console.error('❌ Firebase connection failed:', firebaseError);
+            console.log('⏳ Will retry on next sync cycle');
+            return; // Skip this sync cycle, will retry later
+        }
+        
+        // Get all podcasts from Firestore
+        const podcastsSnapshot = await db.collection('podcasts').get();
+        const podcasts = podcastsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        console.log(`📡 Checking ${podcasts.length} podcasts for updates`);
+        let newEpisodesFound = 0;
+        
+        // Check each podcast for new episodes
+        for (const podcast of podcasts) {
+            if (podcast.feedUrl) {
+                try {
+                    console.log(`🔍 Checking ${podcast.title}...`);
+                    const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(podcast.feedUrl)}`);
+                    const data = await response.json();
+                    
+                    if (data.contents) {
+                        // Parse RSS feed
+                        const parser = new DOMParser();
+                        const xmlDoc = parser.parseFromString(data.contents, 'text/xml');
+                        const items = xmlDoc.querySelectorAll('item');
+                        
+                        // Get existing episodes for this podcast
+                        const existingEpisodesSnapshot = await db.collection('episodes')
+                            .where('podcastId', '==', podcast.id)
+                            .get();
+                        const existingEpisodeIds = new Set(existingEpisodesSnapshot.docs.map(doc => doc.id));
+                        
+                        // Check for new episodes
+                        for (const item of items) {
+                            const title = item.querySelector('title')?.textContent || '';
+                            const pubDate = item.querySelector('pubDate')?.textContent || '';
+                            const guid = item.querySelector('guid')?.textContent || title;
+                            const audioUrl = item.querySelector('enclosure')?.getAttribute('url') || '';
+                            
+                            // Generate stable episode ID
+                            const episodeId = generateEpisodeId(title, pubDate, guid, audioUrl, podcast.id);
+                            
+                            if (!existingEpisodeIds.has(episodeId)) {
+                                // Save new episode
+                                const episodeData = {
+                                    id: episodeId,
+                                    title: title,
+                                    description: item.querySelector('description')?.textContent || '',
+                                    publishDate: new Date(pubDate),
+                                    audioUrl: audioUrl,
+                                    podcastId: podcast.id,
+                                    podcastTitle: podcast.title,
+                                    image: podcast.image,
+                                    featured: false,
+                                    featuredOrder: null,
+                                    tags: [],
+                                    genre: podcast.genre || 'general',
+                                    duration: null
+                                };
+                                
+                                await db.collection('episodes').doc(episodeId).set(episodeData);
+                                newEpisodesFound++;
+                                
+                                console.log(`🆕 New episode saved: ${title}`);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Error syncing ${podcast.title}:`, error);
+                }
+            }
+        }
+        
+        // Notify all clients about new episodes
+        if (newEpisodesFound > 0) {
+            console.log(`🎉 Found ${newEpisodesFound} new episodes!`);
+            const clients = await self.clients.matchAll();
+            clients.forEach(client => {
+                client.postMessage({
+                    type: 'NEW_EPISODES',
+                    count: newEpisodesFound,
+                    message: `${newEpisodesFound} new episodes found`
+                });
+            });
+        } else {
+            console.log('✅ No new episodes found');
+        }
+        
+        console.log(`✅ Background sync completed. Found ${newEpisodesFound} new episodes`);
+        
+    } catch (error) {
+        console.error('❌ Background sync failed:', error);
+        console.log('⏳ Will retry on next cycle');
+    }
+}
+
+// Generate stable episode ID
+function generateEpisodeId(title, pubDate, guid, audioUrl, podcastId) {
+    const stableString = `${podcastId}_${title}_${pubDate}_${guid}_${audioUrl}`;
+    let hash = 0;
+    for (let i = 0; i < stableString.length; i++) {
+        const char = stableString.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return 'rss_ep_' + Math.abs(hash).toString(36);
+}
 
 // Handle sync requests from main app
 async function handleSyncRequest(request) {
@@ -255,3 +409,18 @@ setInterval(async () => {
 }, 10 * 60 * 1000); // Every 10 minutes
 
 console.log('🔧 Service Worker ready for background operations');
+
+// Fallback: Use setInterval for browsers without periodic sync support
+console.log('🔄 Setting up fallback background sync (every 30 minutes)');
+setInterval(performBackgroundSync, 30 * 60 * 1000); // 30 minutes
+
+// Manual trigger for testing
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'TRIGGER_SYNC') {
+        console.log('🔧 Manual sync triggered from main app');
+        event.waitUntil(performBackgroundSync());
+    }
+});
+
+console.log('🔧 Service Worker ready for background operations');
+console.log('💡 To test manually: navigator.serviceWorker.controller.postMessage({type: "TRIGGER_SYNC"})');

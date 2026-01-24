@@ -38,42 +38,77 @@ class AutoUpdateService {
             clearInterval(this.updateInterval);
         }
         
-        // Check for updates every hour (more reasonable)
+        // Check for updates every 24 hours (daily)
         this.updateInterval = setInterval(async () => {
             if (this.isOnline) {
-                await this.checkForNewEpisodes();
+                console.log('🔄 Daily auto-update check starting...');
+                try {
+                    await this.checkForNewEpisodes();
+                    console.log('✅ Daily auto-update completed');
+                } catch (error) {
+                    console.error('❌ Daily auto-update failed:', error);
+                }
             }
-        }, 60 * 60 * 1000); // 1 hour
+        }, 24 * 60 * 60 * 1000); // 24 hours
+        
+        console.log('⏰ Auto-update scheduled: Every 24 hours');
     }
 
     async checkForNewEpisodes() {
         try {
-            // Check all podcasts in main database (not tracked podcasts)
+            console.log('🔍 Starting daily episode check...');
             
             // Get all podcasts from main collection
             const allPodcasts = await this.db.getAllPodcasts();
+            console.log(`📡 Checking ${allPodcasts.length} podcasts for new episodes`);
+            
+            let totalNewEpisodes = 0;
+            let successfulPodcasts = 0;
+            let failedPodcasts = 0;
             
             for (const podcast of allPodcasts) {
                 try {
                     if (podcast.feedUrl) {
+                        console.log(`🔍 Checking ${podcast.title}...`);
                         const result = await this.syncPodcastWithCache(podcast.feedUrl || podcast.id);
-                        if (result.success && result.newEpisodes > 0) {
-                            this.notifyNewEpisodes(podcast.title, result.newEpisodes);
+                        
+                        if (result.success) {
+                            successfulPodcasts++;
+                            if (result.newEpisodes > 0) {
+                                totalNewEpisodes += result.newEpisodes;
+                                this.notifyNewEpisodes(podcast.title, result.newEpisodes);
+                                console.log(`✅ ${podcast.title}: ${result.newEpisodes} new episodes`);
+                            } else {
+                                console.log(`📭 ${podcast.title}: No new episodes`);
+                            }
+                        } else {
+                            failedPodcasts++;
+                            console.log(`❌ ${podcast.title}: Sync failed`);
                         }
                     }
                 } catch (error) {
-                    // Silently handle individual podcast errors
+                    failedPodcasts++;
+                    console.error(`❌ Error checking ${podcast.title}:`, error.message);
+                    // Continue with next podcast instead of failing completely
                 }
             }
             
             // Update last sync time
-            this.lastSyncTime = Date.now();
-            localStorage.setItem('lastSyncTime', this.lastSyncTime);
+            this.lastSyncTime = new Date();
+            this.updateStats();
             
-            this.getUpdateStats();
+            console.log(`📊 Daily sync summary: ${totalNewEpisodes} new episodes from ${successfulPodcasts}/${allPodcasts.length} podcasts`);
+            
+            return {
+                totalNewEpisodes,
+                successfulPodcasts,
+                failedPodcasts,
+                totalPodcasts: allPodcasts.length
+            };
+            
         } catch (error) {
-            // Only log critical errors
-            console.error('❌ Critical error in auto-update:', error);
+            console.error('❌ Daily episode check failed:', error);
+            throw error;
         }
     }
 
@@ -98,8 +133,23 @@ class AutoUpdateService {
             
             return feedData;
         } catch (error) {
-            // Silently handle RSS fetch errors
-            throw error;
+            console.warn(`⚠️ RSS fetch failed for ${feedUrl}:`, error.message);
+            
+            // Return fallback result to prevent complete failure
+            const fallbackResult = {
+                success: false,
+                newEpisodes: 0,
+                error: error.message,
+                feedUrl: feedUrl
+            };
+            
+            // Cache the failure for a shorter time to prevent rapid retries
+            this.cache.set(cacheKey, {
+                data: fallbackResult,
+                timestamp: Date.now()
+            });
+            
+            return fallbackResult;
         }
     }
 
@@ -284,6 +334,9 @@ let autoUpdateService;
 window.addEventListener('DOMContentLoaded', () => {
     autoUpdateService = new AutoUpdateService();
     window.autoUpdateService = autoUpdateService;
+    
+    // Start periodic updates for automatic episode refreshing
+    autoUpdateService.startPeriodicUpdates();
     
     if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();

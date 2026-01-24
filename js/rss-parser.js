@@ -1,11 +1,10 @@
 // RSS Feed Parser Service
 class RSSFeedParser {
     constructor() {
-        // Multiple proxy options for reliability
+        // Multiple proxy options for reliability (removed localhost proxy)
         this.proxies = [
-            'http://localhost:3001/proxy?url=', // Local proxy (best option)
+            'https://corsproxy.io/?', // Most reliable
             'https://api.allorigins.win/get?url=',
-            'https://corsproxy.io/?',
             'https://api.codetabs.com/v1/proxy?quest='
         ];
         this.currentProxyIndex = 0;

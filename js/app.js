@@ -124,6 +124,9 @@ class PodcastApp {
 
     async init() {
         try {
+            // Show loading indicator
+            this.showLoadingIndicator();
+            
             await this.loadData();
             this.setupEventListeners();
             this.updateAdminPanel();
@@ -133,32 +136,97 @@ class PodcastApp {
             
             // Setup tooltips
             this.setupTooltips();
+            
+            // Hide loading indicator and show app
+            this.hideLoadingIndicator();
+            
         } catch (error) {
             console.error('Error initializing app:', error);
             this.showError('Failed to load application');
+            this.hideLoadingIndicator();
+        }
+    }
+
+    showLoadingIndicator() {
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const appMain = document.getElementById('appMain');
+        
+        if (loadingIndicator) {
+            loadingIndicator.style.display = 'flex';
+            loadingIndicator.classList.remove('fade-out');
+        }
+        
+        if (appMain) {
+            appMain.style.display = 'none';
+        }
+    }
+
+    hideLoadingIndicator() {
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const appMain = document.getElementById('appMain');
+        
+        if (loadingIndicator) {
+            loadingIndicator.classList.add('fade-out');
+            
+            // Remove loading indicator after animation
+            setTimeout(() => {
+                loadingIndicator.style.display = 'none';
+            }, 500);
+        }
+        
+        if (appMain) {
+            appMain.style.display = 'block';
+        }
+    }
+
+    updateLoadingText(title, description) {
+        const loadingText = document.querySelector('.loading-text');
+        if (loadingText) {
+            loadingText.innerHTML = `
+                <h2>${title}</h2>
+                <p>${description}</p>
+            `;
         }
     }
 
     async loadData() {
         try {
+            // Update loading text
+            this.updateLoadingText('🎵 Loading Podcasts...', 'Fetching featured episodes...');
+            
             // Load featured episodes
             this.featuredEpisodes = await podcastDB.getFeaturedEpisodes();
+            console.log('📊 Featured episodes loaded:', this.featuredEpisodes.length);
+            
+            // Update loading text
+            this.updateLoadingText('🎵 Loading Podcasts...', 'Fetching latest episodes...');
             
             // Load latest episodes
             this.latestEpisodes = await podcastDB.getLatestEpisodes(5);
+            console.log('📊 Latest episodes loaded:', this.latestEpisodes.length);
+            
+            // Update loading text
+            this.updateLoadingText('🎵 Loading Podcasts...', 'Loading all episodes...');
             
             // Load all episodes for search and pagination
-            this.allEpisodes = await podcastDB.getAllEpisodes();
+            this.episodes = await podcastDB.getAllEpisodes();
+            console.log('📊 All episodes loaded:', this.episodes.length);
             
-            // Extract unique podcast names
-            this.allPodcasts = new Set(this.allEpisodes.map(ep => ep.podcastTitle));
+            // Initialize filtered episodes
+            this.filteredEpisodes = [...this.episodes];
+            console.log('📊 Filtered episodes initialized:', this.filteredEpisodes.length);
             
-            // Set filtered episodes to all episodes initially
-            this.filteredEpisodes = [...this.allEpisodes];
+            // Update loading text
+            this.updateLoadingText('🎵 Loading Podcasts...', 'Setting up interface...');
             
-            // Display data
+            // Display episodes
             this.displayFeaturedEpisodes();
             this.displayLatestEpisodes();
+            
+            // Update loading text
+            this.updateLoadingText('🎵 Almost Ready...', 'Finalizing setup...');
+            
+            // Display data
             this.displayEpisodes();
             this.populateFilters();
             
@@ -185,10 +253,10 @@ class PodcastApp {
 
         featuredGrid.innerHTML = this.featuredEpisodes.map(episode => `
             <div class="featured-card" onclick="app.playEpisode('${episode.id}')">
-                <img src="${episode.image || 'https://marketing.kaizenmadeeasy.com/assets/images/Logo_blue.png'}" 
+                <img src="${episode.image || 'https://kaizenmadeeasy.com/mascot%20with%20shadow.png'}" 
                      alt="${this.escapeHtml(episode.title)}" 
                      class="featured-card-image"
-                     onerror="this.src='https://marketing.kaizenmadeeasy.com/assets/images/Logo_blue.png'"
+                     onerror="this.src='https://kaizenmadeeasy.com/mascot%20with%20shadow.png'"
                      data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">
                 <div class="featured-card-content">
                     <div class="featured-card-title" data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">${this.escapeHtml(episode.title)}</div>
@@ -235,13 +303,13 @@ class PodcastApp {
         this.currentPage = 1;
 
         console.log('🔍 Filtering episodes:', {
-            totalEpisodes: this.allEpisodes.length,
+            totalEpisodes: this.episodes.length,
             searchTerm,
             podcastValue,
             sortValue
         });
 
-        this.filteredEpisodes = this.allEpisodes.filter(episode => {
+        this.filteredEpisodes = this.episodes.filter(episode => {
             const matchesSearch = !searchTerm || 
                 episode.title.toLowerCase().includes(searchTerm) ||
                 episode.description.toLowerCase().includes(searchTerm) ||
@@ -340,11 +408,11 @@ class PodcastApp {
         const isWatchLater = this.isWatchLaterLocal(episode.id);
         
         episodeCard.innerHTML = `
-            <img src="${episode.image || 'https://marketing.kaizenmadeeasy.com/assets/images/Logo_blue.png'}" 
+            <img src="${episode.image || 'https://kaizenmadeeasy.com/mascot%20with%20shadow.png'}" 
                  alt="${this.escapeHtml(episode.title)}" 
                  class="podcast-image" 
                  onclick="app.playEpisode('${episode.id}')"
-                 onerror="this.src='https://marketing.kaizenmadeeasy.com/assets/images/Logo_blue.png'"
+                 onerror="this.src='https://kaizenmadeeasy.com/mascot%20with%20shadow.png'"
                  data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">
             <div class="podcast-title" data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">${this.escapeHtml(episode.title)}</div>
             <div class="podcast-channel">📻 ${this.escapeHtml(episode.podcastTitle)}</div>
@@ -1485,6 +1553,21 @@ playFromPlaylist(index) {
         }, 8000);
     }
 
+    testBackgroundSync() {
+        console.log('🧪 Testing background sync...');
+        
+        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'TRIGGER_SYNC'
+            });
+            
+            this.showNotification('🧪 Background sync test initiated! Check console for results.', 'info');
+        } else {
+            console.error('❌ Service Worker not active');
+            this.showNotification('❌ Service Worker not active. Please refresh the page.', 'error');
+        }
+    }
+
     addUpdateControls() {
         // Add update controls to the admin panel
         const adminPanel = document.getElementById('adminPanel');
@@ -1494,9 +1577,14 @@ playFromPlaylist(index) {
             updateControls.innerHTML = `
                 <div class="update-controls-header">
                     <span class="update-title">🔄 Auto-Updates</span>
-                    <button class="update-btn primary" onclick="window.autoUpdateService.forceUpdate()">
-                        <span class="btn-icon">🔄</span> Check Now
-                    </button>
+                    <div class="update-buttons">
+                        <button class="update-btn primary" onclick="window.autoUpdateService.forceUpdate()">
+                            <span class="btn-icon">🔄</span> Check Now
+                        </button>
+                        <button class="update-btn secondary" onclick="app.testBackgroundSync()">
+                            <span class="btn-icon">🧪</span> Test BG Sync
+                        </button>
+                    </div>
                 </div>
                 <div class="update-stats" id="updateStats">
                     <div class="stat-item">
@@ -1924,6 +2012,32 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Make app globally available for inline event handlers
     window.app = app;
+    
+    // Register service worker for background sync
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/service-worker.js')
+            .then(registration => {
+                console.log('✅ Service Worker registered for background sync');
+                
+                // Check for background sync support
+                if ('periodicSync' in registration) {
+                    console.log('🔄 Background Periodic Sync supported');
+                    // Request permission for periodic sync
+                    registration.periodicSync.register('podcast-sync', {
+                        minInterval: 60 * 60 * 1000 // 1 hour
+                    }).then(() => {
+                        console.log('✅ Periodic sync registered');
+                    }).catch(err => {
+                        console.log('⚠️ Periodic sync registration failed:', err);
+                    });
+                } else {
+                    console.log('⚠️ Background Periodic Sync not supported, using fallback');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Service Worker registration failed:', error);
+            });
+    }
     
     // Check for episode parameter in URL and play if found
     const urlParams = new URLSearchParams(window.location.search);

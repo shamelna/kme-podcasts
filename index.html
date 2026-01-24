@@ -70,7 +70,28 @@
         </div>
     </header>
 
-        <main class="app-main">
+    <!-- Loading Indicator -->
+    <div id="loadingIndicator" class="loading-indicator">
+        <div class="loading-content">
+            <div class="loading-mascot">
+                <img src="https://kaizenmadeeasy.com/mascot%20with%20shadow.png" alt="Kaizen Mascot" class="mascot-image">
+            </div>
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+            </div>
+            <div class="loading-text">
+                <h2>🎵 Loading Podcasts...</h2>
+                <p>Fetching the latest continuous improvement content</p>
+            </div>
+            <div class="loading-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <main class="app-main" id="appMain" style="display: none;">
             <!-- Featured Episodes Section -->
             <section class="featured-section">
                 <div class="section-header">
