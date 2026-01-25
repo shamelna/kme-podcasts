@@ -60,7 +60,7 @@
                     </svg>
                     <span>LinkedIn</span>
                 </a>
-                <a href="https://store.kaizenmadeeasy.com/collections/all" target="_blank" class="nav-link nav-link-store" aria-label="Store">
+                <a href="https://kaizenmadeeasy.com/merch" class="nav-link" target="_blank" aria-label="Visit Store">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/>
                     </svg>
@@ -116,6 +116,27 @@
                 </div>
             </section>
 
+            <!-- Playlist Section -->
+            <section class="playlist-section" id="playlistSection">
+                <div class="section-header">
+                    <h2>📝 My Playlist</h2>
+                    <div class="playlist-controls">
+                        <button class="playlist-btn" onclick="app.playAllPlaylist()" title="Play All">
+                            <span>▶️ Play All</span>
+                        </button>
+                        <button class="playlist-btn" onclick="app.clearPlaylist()" title="Clear Playlist">
+                            <span>🗑️ Clear</span>
+                        </button>
+                        <button class="playlist-btn close-btn" onclick="app.togglePlaylist()" title="Close Playlist">
+                            <span>✕ Close</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="playlist-container" id="playlistContainer">
+                    <!-- Playlist items will be loaded here -->
+                </div>
+            </section>
+
             <!-- Search and Filter Section -->
             <section class="search-section">
                 <div class="search-container">
@@ -167,6 +188,11 @@
                     <div class="footer-copyright">
                         <p>&copy; 2024 Kaizen Made Easy. All rights reserved.</p>
                         <p>Built with passion for the continuous improvement community</p>
+                    </div>
+                    <div class="footer-links">
+                        <button class="footer-link admin-footer" onclick="app.toggleAdminMode()" title="Admin Mode">
+                            ⚙️ Admin
+                        </button>
                     </div>
                 </div>
             </div>
@@ -269,6 +295,20 @@
         <div class="sync-status" id="syncStatus"></div>
     </div>
 
+    <!-- Footer -->
+    <footer class="app-footer">
+        <div class="footer-content">
+            <div class="footer-left">
+                <p>&copy; 2024 Kaizen Made Easy Podcasts. Continuous improvement through learning.</p>
+            </div>
+            <div class="footer-right">
+                <button class="footer-link admin-footer" onclick="app.toggleAdminMode()" title="Admin Mode">
+                    ⚙️ Admin
+                </button>
+            </div>
+        </div>
+    </footer>
+
     <!-- Scripts -->
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -295,5 +335,34 @@
                 });
         }
     </script>
+    
+    <!-- Share Episode Modal -->
+    <div id="shareEpisodeModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🔗 Share Episode</h3>
+                <button class="modal-close" onclick="app.closeShareModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="share-episode-info">
+                    <img id="shareEpisodeImage" src="" alt="" class="share-episode-image">
+                    <div class="share-episode-details">
+                        <h4 id="shareEpisodeTitle"></h4>
+                        <p id="shareEpisodePodcast"></p>
+                        <p id="shareEpisodeDate"></p>
+                        <p id="shareEpisodeDescription"></p>
+                    </div>
+                </div>
+                <div class="share-actions">
+                    <button class="share-play-btn" onclick="app.playSharedEpisode()">
+                        <span>▶️ Play Episode</span>
+                    </button>
+                    <button class="share-copy-btn" onclick="app.copyShareLink()">
+                        <span>📋 Copy Link</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

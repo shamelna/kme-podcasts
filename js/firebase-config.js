@@ -210,6 +210,16 @@ class PodcastDatabase {
             throw error;
         }
     }
+
+    async deleteEpisode(episodeId) {
+        try {
+            await this.db.collection('episodes').doc(episodeId).delete();
+            console.log('✅ Episode deleted successfully:', episodeId);
+        } catch (error) {
+            console.error('Error deleting episode:', error);
+            throw error;
+        }
+    }
 }
 
 // User Data Management for Firebase

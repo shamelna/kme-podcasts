@@ -196,6 +196,8 @@ class PodcastApp {
             
             // Load featured episodes
             this.featuredEpisodes = await podcastDB.getFeaturedEpisodes();
+            // Limit to 5 episodes
+            this.featuredEpisodes = this.featuredEpisodes.slice(0, 5);
             console.log('📊 Featured episodes loaded:', this.featuredEpisodes.length);
             
             // Update loading text
@@ -230,6 +232,9 @@ class PodcastApp {
             this.displayEpisodes();
             this.populateFilters();
             
+            // Check for shared episode in URL
+            this.checkForSharedEpisode();
+            
         } catch (error) {
             console.error('Failed to load podcast data:', error);
             this.showError('Failed to load podcast data');
@@ -252,37 +257,32 @@ class PodcastApp {
         }
 
         featuredGrid.innerHTML = this.featuredEpisodes.map(episode => `
-            <div class="featured-card" onclick="app.playEpisode('${episode.id}')">
-                <img src="${episode.image || 'https://kaizenmadeeasy.com/mascot%20with%20shadow.png'}" 
-                     alt="${this.escapeHtml(episode.title)}" 
-                     class="featured-card-image"
-                     onerror="this.src='https://kaizenmadeeasy.com/mascot%20with%20shadow.png'"
-                     data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">
+            <div class="featured-card">
                 <div class="featured-card-content">
-                    <div class="featured-card-title" data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">${this.escapeHtml(episode.title)}</div>
-                    <div class="featured-card-podcast">${this.escapeHtml(episode.podcastTitle)}</div>
-                    <div class="featured-card-date">${this.formatDate(episode.publishDate)}</div>
+                    <div class="featured-card-main">
+                        <img src="${episode.image || 'https://kaizenmadeeasy.com/mascot%20with%20shadow.png'}" 
+                             alt="${this.escapeHtml(episode.title)}" 
+                             class="featured-card-image"
+                             onerror="this.src='https://kaizenmadeeasy.com/mascot%20with%20shadow.png'"
+                             data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">
+                        <div class="featured-card-text">
+                            <div class="featured-card-title" data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">${this.escapeHtml(episode.title)}</div>
+                            <div class="featured-card-podcast">${this.escapeHtml(episode.podcastTitle)}</div>
+                            <div class="featured-card-date">${this.formatDate(episode.publishDate)}</div>
+                        </div>
+                    </div>
+                    <div class="featured-card-actions">
+                        <button class="featured-action-btn" onclick="app.playEpisode('${episode.id}')" title="Play Episode">
+                            ▶️
+                        </button>
+                        <button class="featured-action-btn" onclick="app.shareEpisode('${episode.id}')" title="Share Episode">
+                            🔗
+                        </button>
+                        <button class="featured-action-btn" onclick="app.addToPlaylist('${episode.id}')" title="Add to Playlist">
+                            📝
+                        </button>
+                    </div>
                 </div>
-            </div>
-        `).join('');
-        
-        // Re-initialize tooltips for new elements
-        setTimeout(() => this.addTooltipListeners(), 100);
-    }
-
-    displayLatestEpisodes() {
-        const latestGrid = document.getElementById('latestGrid');
-        
-        if (this.latestEpisodes.length === 0) {
-            latestGrid.innerHTML = '<p style="text-align: center; opacity: 0.8;">No episodes available</p>';
-            return;
-        }
-
-        latestGrid.innerHTML = this.latestEpisodes.map(episode => `
-            <div class="latest-card" onclick="app.playEpisode('${episode.id}')">
-                <div class="latest-card-title" data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">${this.escapeHtml(episode.title)}</div>
-                <div class="latest-card-channel">${this.escapeHtml(episode.podcastTitle)}</div>
-                <div class="latest-card-date">${this.formatDate(episode.publishDate)}</div>
             </div>
         `).join('');
         
@@ -366,17 +366,7 @@ class PodcastApp {
         // Clear and populate episode grid
         podcastGrid.innerHTML = '';
         
-        if (paginatedEpisodes.length === 0) {
-            podcastGrid.innerHTML = `
-                <div class="no-results">
-                    <h3>No episodes found</h3>
-                    <p>Try adjusting your search or filters</p>
-                </div>
-            `;
-            return;
-        }
-        
-        // Add episodes
+        // Add episode cards to grid
         paginatedEpisodes.forEach(episode => {
             const episodeCard = this.createEpisodeCard(episode);
             podcastGrid.appendChild(episodeCard);
@@ -385,8 +375,7 @@ class PodcastApp {
         // Update bottom pagination
         this.updatePagination(filteredEpisodes.length, 'bottom');
         
-        // Re-initialize tooltips for new elements
-        setTimeout(() => this.addTooltipListeners(), 100);
+        console.log(`📊 Displayed ${paginatedEpisodes.length} episodes (page ${this.currentPage})`);
     }
 
     getFilteredEpisodes() {
@@ -400,52 +389,62 @@ class PodcastApp {
     }
 
     createEpisodeCard(episode) {
-        const episodeCard = document.createElement('div');
-        episodeCard.className = 'podcast-card';
+        // Ensure episode has a valid image URL
+        const imageUrl = episode.image || episode.thumbnail || 'https://kaizenmadeeasy.com/mascot%20with%20shadow.png';
         
-        // Check favorites and watch later (local storage for now)
-        const isFavorite = this.isFavoriteLocal(episode.id);
-        const isWatchLater = this.isWatchLaterLocal(episode.id);
-        
-        episodeCard.innerHTML = `
-            <img src="${episode.image || 'https://kaizenmadeeasy.com/mascot%20with%20shadow.png'}" 
-                 alt="${this.escapeHtml(episode.title)}" 
-                 class="podcast-image" 
+        const card = document.createElement('div');
+        card.className = 'podcast-card';
+        card.innerHTML = `
+            <img src="${imageUrl}"
+                 alt="${this.escapeHtml(episode.title)}"
+                 class="podcast-image"
                  onclick="app.playEpisode('${episode.id}')"
                  onerror="this.src='https://kaizenmadeeasy.com/mascot%20with%20shadow.png'"
                  data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">
-            <div class="podcast-title" data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">${this.escapeHtml(episode.title)}</div>
-            <div class="podcast-channel">📻 ${this.escapeHtml(episode.podcastTitle)}</div>
-            <div class="podcast-date">📅 ${this.formatDate(episode.publishDate)}</div>
-            <div class="podcast-links">
-                <button class="podcast-link play-btn" onclick="app.playEpisode('${episode.id}')" title="Play Episode">
-                    <span class="btn-icon">▶️</span> Play
-                </button>
-                <button class="podcast-link playlist-btn" onclick="app.addToPlaylist('${episode.id}')" title="Add to Playlist">
-                    <span class="btn-icon">➕</span> Add to Playlist
-                </button>
-                <button class="podcast-link favorite-btn ${isFavorite ? 'favorited' : ''}" onclick="app.toggleFavorite('${episode.id}')" title="${isFavorite ? 'Remove from' : 'Add to'} Favorites">
-                    <span class="btn-icon">${isFavorite ? '❤️' : '🤍'}</span>
-                    ${isFavorite ? 'Favorited' : 'Favorite'}
-                </button>
-                <button class="podcast-link watchlater-btn ${isWatchLater ? 'watching' : ''}" onclick="app.toggleWatchLater('${episode.id}')" title="${isWatchLater ? 'Remove from' : 'Add to'} Watch Later">
-                    <span class="btn-icon">${isWatchLater ? '⏰' : '🕐'}</span>
-                    ${isWatchLater ? 'Watching' : 'Watch Later'}
-                </button>
-                <button class="podcast-link share-btn" onclick="app.shareEpisode('${episode.id}')" title="Share Episode">
-                    <span class="btn-icon">🔗</span> Share
-                </button>
-            </div>
-            <div class="admin-controls-card ${this.adminMode ? 'active' : ''}" id="admin-${episode.id}">
-                ${episode.featured ? 
-                    `<button class="admin-btn-small unfeature" onclick="app.unfeatureEpisode('${episode.id}')">Unfeature</button>` :
-                    `<button class="admin-btn-small feature" onclick="app.featureEpisode('${episode.id}')">Feature</button>`
-                }
-                <button class="admin-btn-small" onclick="app.deleteEpisode('${episode.id}')">Delete</button>
+            <div class="podcast-content">
+                <h3 class="podcast-title">${this.escapeHtml(episode.title)}</h3>
+                <p class="podcast-channel">
+                    <span class="channel-icon">🎙️</span>
+                    ${this.escapeHtml(episode.podcastTitle)}
+                </p>
+                <p class="podcast-date">${this.formatDate(episode.publishDate)}</p>
+                <div class="episode-actions">
+                    <button class="action-btn-icon" onclick="app.playEpisode('${episode.id}')" title="Play">
+                        <span class="btn-icon">▶️</span>
+                    </button>
+                    <button class="action-btn-icon" onclick="app.addToPlaylist('${episode.id}')" title="Add to Playlist">
+                        <span class="btn-icon">➕</span>
+                    </button>
+                    <button class="action-btn-icon" onclick="app.toggleFavorite('${episode.id}')" title="Add to Favorites">
+                        <span class="btn-icon">🤍</span>
+                    </button>
+                    <button class="action-btn-icon" onclick="app.toggleWatchLater('${episode.id}')" title="Watch Later">
+                        <span class="btn-icon">🕐</span>
+                    </button>
+                    <button class="action-btn-icon" onclick="app.shareEpisode('${episode.id}')" title="Share">
+                        <span class="btn-icon">🔗</span>
+                    </button>
+                    ${this.adminMode && !episode.featured ? `
+                        <button class="action-btn-icon admin-btn" onclick="app.featureEpisode('${episode.id}')" title="Feature Episode">
+                            <span class="btn-icon">⭐</span>
+                        </button>
+                    ` : ''}
+                </div>
             </div>
         `;
         
-        return episodeCard;
+        // Add click handler for the entire card
+        card.addEventListener('click', (e) => {
+            if (!e.target.closest('button')) {
+                this.playEpisode(episode.id);
+            }
+        });
+        
+        return card;
+    }
+
+    getFilteredEpisodes() {
+        return this.filteredEpisodes;
     }
 
     updatePagination(totalEpisodes, position = 'bottom') {
@@ -606,10 +605,11 @@ class PodcastApp {
 
     async featureEpisode(episodeId) {
         try {
-            // Look for episode in all episodes arrays
-            const episode = this.allEpisodes.find(e => e.id === episodeId) || 
-                          this.filteredEpisodes.find(e => e.id === episodeId) ||
-                          this.latestEpisodes.find(e => e.id === episodeId);
+            // Look for episode in all episodes arrays (check if arrays exist first)
+            const episode = (this.allEpisodes && this.allEpisodes.find ? this.allEpisodes.find(e => e.id === episodeId) : null) || 
+                          (this.filteredEpisodes && this.filteredEpisodes.find ? this.filteredEpisodes.find(e => e.id === episodeId) : null) ||
+                          (this.featuredEpisodes && this.featuredEpisodes.find ? this.featuredEpisodes.find(e => e.id === episodeId) : null) ||
+                          (this.latestEpisodes && this.latestEpisodes.find ? this.latestEpisodes.find(e => e.id === episodeId) : null);
             
             if (!episode) {
                 this.showNotification('❌ Episode not found', 'error');
@@ -788,39 +788,72 @@ class PodcastApp {
     }
 
     toggleAdminMode() {
-        this.adminMode = !this.adminMode;
+        // Check if admin mode is already enabled
+        if (this.adminMode) {
+            // If already enabled, disable it
+            this.adminMode = false;
+            this.updateAdminUI(false);
+            console.log('👨‍💼 Admin mode disabled');
+            this.showNotification('Admin mode disabled', 'info');
+            return;
+        }
         
+        // If not enabled, require password
+        const password = prompt('Enter admin password:');
+        if (password === 'kaizen2024') {
+            // Correct password - enable admin mode
+            this.adminMode = true;
+            localStorage.setItem('kme-admin-password', 'kaizen2024');
+            this.updateAdminUI(true);
+            console.log('👨‍💼 Admin mode enabled');
+            this.showNotification('Admin mode enabled', 'success');
+        } else if (password !== null) {
+            // Wrong password (but user didn't cancel)
+            this.showNotification('Incorrect password', 'error');
+            console.log('❌ Incorrect admin password entered');
+        }
+        // If user cancelled (password === null), do nothing
+    }
+    
+    updateAdminUI(enable) {
         // Toggle admin panel visibility
         const adminPanel = document.getElementById('adminPanel');
         if (adminPanel) {
-            if (this.adminMode) {
-                adminPanel.classList.add('active');
-                console.log('👨‍💼 Admin panel shown');
+            adminPanel.style.display = enable ? 'block' : 'none';
+        }
+        
+        // Update admin button appearance
+        const adminBtn = document.querySelector('.admin-toggle-btn');
+        if (adminBtn) {
+            if (enable) {
+                adminBtn.classList.add('active');
+                adminBtn.querySelector('span').textContent = 'Admin ✅';
             } else {
-                adminPanel.classList.remove('active');
-                console.log('👨‍💼 Admin panel hidden');
+                adminBtn.classList.remove('active');
+                adminBtn.querySelector('span').textContent = 'Admin';
             }
         }
         
-        // Toggle admin controls on cards
+        // Show/hide admin controls on episode cards
         const adminControls = document.querySelectorAll('.admin-controls-card');
         adminControls.forEach(control => {
-            if (this.adminMode) {
-                control.classList.add('active');
-            } else {
-                control.classList.remove('active');
-            }
+            control.classList.toggle('active', enable);
         });
         
-        // Toggle featured section admin controls
+        // Show/hide featured admin controls
         const featuredAdminControls = document.getElementById('featuredAdminControls');
         if (featuredAdminControls) {
-            featuredAdminControls.style.display = this.adminMode ? 'block' : 'none';
+            featuredAdminControls.style.display = enable ? 'block' : 'none';
+        }
+        
+        // Update filter section to show admin options
+        const filterSection = document.querySelector('.filter-section');
+        if (filterSection) {
+            filterSection.classList.toggle('admin-mode', enable);
         }
         
         // Re-render episodes to show/hide admin controls
         this.displayEpisodes();
-        this.displayFeaturedEpisodes();
     }
 
     updateAdminPanel() {
@@ -830,26 +863,16 @@ class PodcastApp {
             return;
         }
         
-        // Check legacy password for admin access
+        // Check for saved admin password
         const adminPassword = localStorage.getItem('kme-admin-password');
         if (adminPassword === 'kaizen2024') {
-            adminPanel.classList.add('active');
-            this.adminMode = true; // Set admin mode flag
-            
-            // Show featured admin controls
-            const featuredAdminControls = document.getElementById('featuredAdminControls');
-            if (featuredAdminControls) {
-                featuredAdminControls.style.display = 'block';
-            }
+            this.adminMode = true;
+            this.updateAdminUI(true);
+            console.log('👨‍💼 Admin mode auto-enabled from saved password');
         } else {
-            adminPanel.classList.remove('active');
-            this.adminMode = false; // Clear admin mode flag
-            
-            // Hide featured admin controls
-            const featuredAdminControls = document.getElementById('featuredAdminControls');
-            if (featuredAdminControls) {
-                featuredAdminControls.style.display = 'none';
-            }
+            this.adminMode = false;
+            this.updateAdminUI(false);
+            console.log('🔒 Admin mode disabled - no valid password found');
         }
     }
 
@@ -1047,28 +1070,33 @@ class PodcastApp {
             latestEpisodes: this.latestEpisodes?.length || 0
         });
         
-        // Look for episode in all episodes arrays
-        const episode = this.allEpisodes.find(e => e.id === episodeId) || 
-                      this.filteredEpisodes.find(e => e.id === episodeId) ||
-                      this.featuredEpisodes.find(e => e.id === episodeId) ||
-                      this.latestEpisodes.find(e => e.id === episodeId);
+        // Look for episode in all episodes arrays (check if arrays exist first)
+        const episode = (this.allEpisodes && this.allEpisodes.find ? this.allEpisodes.find(e => e.id === episodeId) : null) || 
+                      (this.filteredEpisodes && this.filteredEpisodes.find ? this.filteredEpisodes.find(e => e.id === episodeId) : null) ||
+                      (this.featuredEpisodes && this.featuredEpisodes.find ? this.featuredEpisodes.find(e => e.id === episodeId) : null) ||
+                      (this.latestEpisodes && this.latestEpisodes.find ? this.latestEpisodes.find(e => e.id === episodeId) : null);
         
         console.log('🔍 Found episode:', episode ? {
             id: episode.id,
             title: episode.title,
             hasAudio: !!episode.audioUrl,
+            audioUrl: episode.audioUrl,
             podcastTitle: episode.podcastTitle
         } : 'NOT FOUND');
         
-        if (!episode || !episode.audioUrl) {
-            console.error('❌ Episode not available for playback:', {
-                found: !!episode,
-                hasAudio: episode?.audioUrl,
-                episodeId: episodeId
-            });
-            alert('Episode not available for playback');
+        if (!episode) {
+            console.error('❌ Episode not found:', episodeId);
+            this.showNotification('❌ Episode not found', 'error');
             return;
         }
+        
+        if (!episode.audioUrl) {
+            console.error('❌ Episode has no audio URL:', episode.title);
+            this.showNotification('❌ Episode has no audio available', 'error');
+            return;
+        }
+        
+        console.log('🎵 Playing episode:', episode.title, 'Audio URL:', episode.audioUrl);
 
         // Add to playlist if not already there
         if (!this.playlist.find(e => e.id === episodeId)) {
@@ -1078,6 +1106,11 @@ class PodcastApp {
         // Initialize audio player if not already done
         if (!this.audioPlayer) {
             this.audioPlayer = document.getElementById('audioPlayer');
+            if (!this.audioPlayer) {
+                console.error('❌ Audio player element not found');
+                this.showNotification('❌ Audio player not available', 'error');
+                return;
+            }
             this.setupAudioPlayerEvents();
         }
 
@@ -1089,12 +1122,10 @@ class PodcastApp {
         if (playPromise !== undefined) {
             playPromise.catch(error => {
                 if (error.name === 'NotAllowedError') {
-                    console.log('🔇 Autoplay blocked - waiting for user interaction');
-                    // Show a message to user to click play
-                    this.showAutoplayMessage(episode);
+                    this.showAutoplayBlockedMessage(episode);
                 } else {
-                    console.error('❌ Audio playback error:', error);
-                    this.showNotification('Failed to play episode', 'error');
+                    console.error('❌ Error playing episode:', error);
+                    this.showNotification('❌ Error playing episode', 'error');
                 }
             });
         }
@@ -1466,6 +1497,215 @@ playFromPlaylist(index) {
         this.showNotification('⏰ Watch Later feature coming soon!', 'info');
     }
 
+    addToPlaylist(episodeId) {
+        // Look for episode in all episodes arrays (check if arrays exist first)
+        const episode = (this.allEpisodes && this.allEpisodes.find ? this.allEpisodes.find(e => e.id === episodeId) : null) || 
+                       (this.filteredEpisodes && this.filteredEpisodes.find ? this.filteredEpisodes.find(e => e.id === episodeId) : null) ||
+                       (this.featuredEpisodes && this.featuredEpisodes.find ? this.featuredEpisodes.find(e => e.id === episodeId) : null) ||
+                       (this.latestEpisodes && this.latestEpisodes.find ? this.latestEpisodes.find(e => e.id === episodeId) : null);
+        
+        if (!episode) {
+            console.error('Episode not found:', episodeId);
+            this.showNotification('❌ Episode not found', 'error');
+            return;
+        }
+
+        // Get current playlist from localStorage
+        let playlist = JSON.parse(localStorage.getItem('kme-playlist') || '[]');
+        
+        // Check if episode is already in playlist
+        if (playlist.find(ep => ep.id === episodeId)) {
+            this.showNotification('📝 Episode already in playlist', 'info');
+            return;
+        }
+        
+        // Add episode to playlist
+        playlist.push({
+            id: episode.id,
+            title: episode.title,
+            podcastTitle: episode.podcastTitle,
+            audioUrl: episode.audioUrl,
+            image: episode.image,
+            publishDate: episode.publishDate,
+            addedAt: new Date().toISOString()
+        });
+        
+        // Save playlist to localStorage
+        localStorage.setItem('kme-playlist', JSON.stringify(playlist));
+        
+        this.showNotification(`✅ "${episode.title}" added to playlist`, 'success');
+        console.log('📝 Playlist updated:', playlist.length, 'episodes');
+        
+        // Update playlist display if visible
+        this.updatePlaylistDisplay();
+    }
+    
+    // Toggle playlist visibility
+    togglePlaylist() {
+        const playlistSection = document.getElementById('playlistSection');
+        if (!playlistSection) return;
+        
+        const isActive = playlistSection.classList.contains('active');
+        
+        if (isActive) {
+            playlistSection.classList.remove('active');
+            // Remove click-outside listener when closing
+            document.removeEventListener('click', this.handlePlaylistClickOutside);
+        } else {
+            playlistSection.classList.add('active');
+            this.updatePlaylistDisplay();
+            // Add click-outside listener when opening
+            setTimeout(() => {
+                document.addEventListener('click', this.handlePlaylistClickOutside.bind(this));
+            }, 100);
+        }
+    }
+    
+    // Handle click outside playlist to close it
+    handlePlaylistClickOutside(event) {
+        const playlistSection = document.getElementById('playlistSection');
+        if (playlistSection && !playlistSection.contains(event.target)) {
+            playlistSection.classList.remove('active');
+            document.removeEventListener('click', this.handlePlaylistClickOutside);
+        }
+    }
+    
+    // Update playlist display
+    displayLatestEpisodes() {
+        const latestGrid = document.getElementById('latestGrid');
+        
+        if (this.latestEpisodes.length === 0) {
+            latestGrid.innerHTML = '<p style="text-align: center; opacity: 0.8;">No episodes available</p>';
+            return;
+        }
+
+        latestGrid.innerHTML = this.latestEpisodes.map(episode => `
+            <div class="latest-episode" onclick="app.playEpisode('${episode.id}')" data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">
+                <h3>${this.escapeHtml(episode.title)}</h3>
+                <p>${this.escapeHtml(episode.podcastTitle)}</p>
+            </div>
+        `).join('');
+        
+        // Re-initialize tooltips for new elements
+        setTimeout(() => this.addTooltipListeners(), 100);
+    }
+    
+    // Update playlist display
+    updatePlaylistDisplay() {
+        const container = document.getElementById('playlistContainer');
+        if (!container) return;
+        
+        const playlist = JSON.parse(localStorage.getItem('kme-playlist') || '[]');
+        
+        if (playlist.length === 0) {
+            container.innerHTML = `
+                <div class="playlist-empty">
+                    <h3>📝 Your playlist is empty</h3>
+                    <p>Add episodes from the podcast list to create your personal playlist</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = playlist.map((episode, index) => `
+            <div class="playlist-item ${this.currentPlayingEpisode === episode.id ? 'current' : ''}" data-episode-id="${episode.id}">
+                <img src="${episode.image || 'https://kaizenmadeeasy.com/mascot%20with%20shadow.png'}" 
+                     alt="${this.escapeHtml(episode.title)}" 
+                     class="playlist-item-image"
+                     onerror="this.src='https://kaizenmadeeasy.com/mascot%20with%20shadow.png'">
+                <div class="playlist-item-info">
+                    <h4 class="playlist-item-title">${this.escapeHtml(episode.title)}</h4>
+                    <p class="playlist-item-podcast">${this.escapeHtml(episode.podcastTitle)}</p>
+                    <p class="playlist-item-date">${this.formatDate(episode.publishDate)}</p>
+                </div>
+                <div class="playlist-item-actions">
+                    <button class="playlist-item-btn" onclick="app.playEpisode('${episode.id}')" title="Play">
+                        ▶️
+                    </button>
+                    <button class="playlist-item-btn remove-btn" onclick="app.removeFromPlaylist('${episode.id}')" title="Remove">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    // Remove episode from playlist
+    removeFromPlaylist(episodeId) {
+        let playlist = JSON.parse(localStorage.getItem('kme-playlist') || '[]');
+        
+        const originalLength = playlist.length;
+        playlist = playlist.filter(ep => ep.id !== episodeId);
+        
+        if (playlist.length < originalLength) {
+            localStorage.setItem('kme-playlist', JSON.stringify(playlist));
+            this.showNotification('🗑️ Episode removed from playlist', 'info');
+            this.updatePlaylistDisplay();
+        }
+    }
+    
+    // Clear entire playlist
+    clearPlaylist() {
+        if (!confirm('Are you sure you want to clear your entire playlist?')) {
+            return;
+        }
+        
+        localStorage.setItem('kme-playlist', JSON.stringify([]));
+        this.showNotification('🗑️ Playlist cleared', 'info');
+        this.updatePlaylistDisplay();
+    }
+    
+    // Play all episodes in playlist
+    playAllPlaylist() {
+        const playlist = JSON.parse(localStorage.getItem('kme-playlist') || '[]');
+        
+        if (playlist.length === 0) {
+            this.showNotification('📝 Playlist is empty', 'info');
+            return;
+        }
+        
+        this.showNotification(`▶️ Playing ${playlist.length} episodes from playlist`, 'success');
+        
+        // Play first episode
+        if (playlist.length > 0) {
+            this.playEpisode(playlist[0].id);
+        }
+        
+        // Note: Auto-playing next episodes would require implementing a queue system
+        // For now, this just plays the first episode
+    }
+
+    async deleteEpisode(episodeId) {
+        try {
+            if (!confirm('Are you sure you want to delete this episode? This action cannot be undone.')) {
+                return;
+            }
+
+            // Look for episode in all episodes arrays
+            const episode = this.allEpisodes.find(e => e.id === episodeId) || 
+                          this.filteredEpisodes.find(e => e.id === episodeId) ||
+                          this.featuredEpisodes.find(e => e.id === episodeId) ||
+                          this.latestEpisodes.find(e => e.id === episodeId);
+            
+            if (!episode) {
+                this.showNotification('❌ Episode not found', 'error');
+                return;
+            }
+
+            // Delete episode from Firebase
+            await podcastDB.db.collection('episodes').doc(episodeId).delete();
+            
+            this.showNotification(`🗑️ Deleted "${episode.title}"`, 'success');
+            
+            // Reload data to update UI
+            await this.loadData();
+            
+        } catch (error) {
+            console.error('Error deleting episode:', error);
+            this.showNotification('Failed to delete episode', 'error');
+        }
+    }
+
     setupAutoUpdateIntegration() {
         // Listen for messages from service worker
         if ('serviceWorker' in navigator) {
@@ -1505,6 +1745,8 @@ playFromPlaylist(index) {
                         // Check if episode already exists
                         const exists = this.episodes.find(ep => ep.id === episode.id);
                         if (!exists) {
+                            episode.image = episode.image || 'https://example.com/mascot-placeholder.jpg'; // Add default image
+                            episode.image = episode.image.replace('http://', 'https://'); // Ensure HTTPS
                             this.episodes.push({
                                 ...episode,
                                 isNew: true
@@ -1513,11 +1755,6 @@ playFromPlaylist(index) {
                     });
                 }
             });
-            
-            // Update display without full reload
-            this.displayEpisodes();
-            
-            // Show notification
             this.showUpdateNotification(
                 episodes.reduce((total, pod) => total + (pod.episodes ? pod.episodes.length : 0), 0),
                 'New episodes available'
@@ -1553,18 +1790,40 @@ playFromPlaylist(index) {
         }, 8000);
     }
 
-    testBackgroundSync() {
+    async testBackgroundSync() {
         console.log('🧪 Testing background sync...');
         
-        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            console.log('✅ Service Worker is active, sending sync message');
+            
+            // Send message to service worker
             navigator.serviceWorker.controller.postMessage({
                 type: 'TRIGGER_SYNC'
             });
             
             this.showNotification('🧪 Background sync test initiated! Check console for results.', 'info');
+        } else if ('serviceWorker' in navigator) {
+            // Service worker registered but not active yet, wait for it
+            console.log('⏳ Service Worker registered but not active, waiting...');
+            
+            try {
+                const registration = await navigator.serviceWorker.ready;
+                if (registration.active) {
+                    console.log('✅ Service Worker is now active, sending sync message');
+                    registration.active.postMessage({
+                        type: 'TRIGGER_SYNC'
+                    });
+                    this.showNotification('🧪 Background sync test initiated! Check console for results.', 'info');
+                } else {
+                    throw new Error('Service Worker still not active');
+                }
+            } catch (error) {
+                console.error('❌ Service Worker activation failed:', error);
+                this.showNotification('❌ Service Worker failed to activate. Please refresh the page.', 'error');
+            }
         } else {
-            console.error('❌ Service Worker not active');
-            this.showNotification('❌ Service Worker not active. Please refresh the page.', 'error');
+            console.error('❌ Service Worker not supported');
+            this.showNotification('❌ Service Workers not supported in this browser.', 'error');
         }
     }
 
@@ -1642,27 +1901,130 @@ playFromPlaylist(index) {
 
     // Share episode functionality
     shareEpisode(episodeId) {
-        const episode = this.allEpisodes.find(ep => ep.id === episodeId);
+        // Look for episode in all episodes arrays (check if arrays exist first)
+        const episode = (this.allEpisodes && this.allEpisodes.find ? this.allEpisodes.find(ep => ep.id === episodeId) : null) || 
+                       (this.filteredEpisodes && this.filteredEpisodes.find ? this.filteredEpisodes.find(ep => ep.id === episodeId) : null) ||
+                       (this.featuredEpisodes && this.featuredEpisodes.find ? this.featuredEpisodes.find(ep => ep.id === episodeId) : null) ||
+                       (this.latestEpisodes && this.latestEpisodes.find ? this.latestEpisodes.find(ep => ep.id === episodeId) : null);
+        
         if (!episode) {
             console.error('Episode not found:', episodeId);
-            console.log('Available episodes:', this.allEpisodes.map(ep => ep.id).slice(0, 5));
+            console.log('Available episodes:', {
+                allEpisodes: this.allEpisodes?.length || 0,
+                filteredEpisodes: this.filteredEpisodes?.length || 0,
+                featuredEpisodes: this.featuredEpisodes?.length || 0,
+                latestEpisodes: this.latestEpisodes?.length || 0
+            });
             return;
         }
 
         // Create shareable URL with episode parameter
         const shareUrl = `${window.location.origin}${window.location.pathname}?episode=${encodeURIComponent(episodeId)}`;
         
-        // Copy to clipboard
+        // Copy to clipboard (no modal shown)
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(shareUrl).then(() => {
-                this.showShareNotification('Episode link copied to clipboard!');
+                this.showNotification('📋 Episode link copied to clipboard!', 'success');
             }).catch(err => {
                 console.error('Failed to copy link:', err);
                 this.fallbackShare(shareUrl, episode);
             });
         } else {
-            // Fallback for older browsers
             this.fallbackShare(shareUrl, episode);
+        }
+    }
+
+    // Show share modal with episode details
+    showShareModal(episode) {
+        const modal = document.getElementById('shareEpisodeModal');
+        if (!modal) return;
+
+        // Store current episode for playing
+        this.currentSharedEpisode = episode;
+
+        // Update modal content with episode details
+        document.getElementById('shareEpisodeImage').src = episode.image || episode.thumbnail || 'https://kaizenmadeeasy.com/mascot%20with%20shadow.png';
+        document.getElementById('shareEpisodeImage').alt = this.escapeHtml(episode.title);
+        document.getElementById('shareEpisodeTitle').textContent = this.escapeHtml(episode.title);
+        document.getElementById('shareEpisodePodcast').textContent = this.escapeHtml(episode.podcastTitle);
+        document.getElementById('shareEpisodeDate').textContent = this.formatDate(episode.publishDate);
+        document.getElementById('shareEpisodeDescription').textContent = this.escapeHtml(this.getCleanDescription(episode.description));
+
+        // Show modal
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden'; // Prevent background scroll
+        
+        console.log('📋 Share modal opened for episode:', episode.title);
+    }
+
+    // Close share modal
+    closeShareModal() {
+        const modal = document.getElementById('shareEpisodeModal');
+        if (modal) {
+            modal.style.display = 'none';
+            document.body.style.overflow = ''; // Restore scroll
+            this.currentSharedEpisode = null;
+        }
+    }
+
+    // Play shared episode from modal
+    playSharedEpisode() {
+        console.log('🎵 Play shared episode clicked');
+        console.log('📋 Current shared episode:', this.currentSharedEpisode);
+        
+        if (this.currentSharedEpisode) {
+            // Store episode ID before closing modal
+            const episodeId = this.currentSharedEpisode.id;
+            console.log('🎵 Playing shared episode:', this.currentSharedEpisode.title);
+            console.log('🎵 Episode ID:', episodeId);
+            console.log('🎵 Audio URL:', this.currentSharedEpisode.audioUrl);
+            
+            this.closeShareModal();
+            this.playEpisode(episodeId);
+        } else {
+            console.error('❌ No current shared episode found');
+            this.showNotification('❌ No episode available to play', 'error');
+        }
+    }
+
+    // Copy share link
+    copyShareLink() {
+        if (this.currentSharedEpisode) {
+            const shareUrl = `${window.location.origin}${window.location.pathname}?episode=${encodeURIComponent(this.currentSharedEpisode.id)}`;
+            
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    this.showNotification('📋 Episode link copied to clipboard!', 'success');
+                }).catch(err => {
+                    console.error('Failed to copy link:', err);
+                    this.fallbackShare(shareUrl, this.currentSharedEpisode);
+                });
+            } else {
+                this.fallbackShare(shareUrl, this.currentSharedEpisode);
+            }
+        }
+    }
+
+    // Check for shared episode on page load
+    checkForSharedEpisode() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const episodeId = urlParams.get('episode');
+        
+        if (episodeId) {
+            // Look for episode in all episodes arrays
+            const episode = (this.allEpisodes && this.allEpisodes.find ? this.allEpisodes.find(ep => ep.id === episodeId) : null) || 
+                           (this.filteredEpisodes && this.filteredEpisodes.find ? this.filteredEpisodes.find(ep => ep.id === episodeId) : null) ||
+                           (this.featuredEpisodes && this.featuredEpisodes.find ? this.featuredEpisodes.find(ep => ep.id === episodeId) : null) ||
+                           (this.latestEpisodes && this.latestEpisodes.find ? this.latestEpisodes.find(ep => ep.id === episodeId) : null);
+            
+            if (episode) {
+                // Show share modal for shared episode
+                this.showShareModal(episode);
+                
+                // Clean URL to remove episode parameter
+                const cleanUrl = window.location.pathname;
+                window.history.replaceState({}, '', cleanUrl);
+            }
         }
     }
 
@@ -1779,20 +2141,16 @@ playFromPlaylist(index) {
         });
     }
 
-    // Function to remove duplicate episodes from database
-    async removeDuplicateEpisodes() {
+    // Check for duplicate episodes
+    async checkForDuplicates() {
         try {
-            console.log('🔍 Starting advanced duplicate episode cleanup...');
-            const statusEl = document.getElementById('syncStatus');
-            if (statusEl) {
-                statusEl.textContent = 'Finding and removing duplicate episodes...';
-                statusEl.className = 'sync-status';
-            }
-
+            console.log('🔍 Checking for duplicate episodes...');
+            this.showNotification('🔍 Scanning for duplicate episodes...', 'info');
+            
             // Get all episodes from database
             const allEpisodes = await podcastDB.getAllEpisodes();
             console.log(`📊 Found ${allEpisodes.length} total episodes in database`);
-
+            
             // Advanced duplicate detection
             const duplicates = [];
             const seenEpisodes = new Map();
@@ -1819,70 +2177,34 @@ playFromPlaylist(index) {
                     });
                 }
             });
-
+            
             console.log(`🔍 Found ${duplicates.length} potential duplicates by content analysis`);
-
+            
             if (duplicates.length === 0) {
-                if (statusEl) {
-                    statusEl.textContent = 'No duplicate episodes found';
-                }
-                this.showNotification('No duplicate episodes found in database');
+                this.showNotification('✅ No duplicate episodes found in database', 'success');
                 return;
             }
-
-            // Remove duplicates (keep the first one found)
-            let removedCount = 0;
-            const BATCH_SIZE = 400; // Firebase limit is around 500 operations
             
-            // Process duplicates in batches to avoid Firebase transaction size limits
-            const duplicateBatches = [];
-            for (let i = 0; i < duplicates.length; i += BATCH_SIZE) {
-                duplicateBatches.push(duplicates.slice(i, i + BATCH_SIZE));
+            // Show detailed duplicate report
+            console.log('📋 Duplicate Episodes Report:');
+            duplicates.forEach((dup, index) => {
+                console.log(`${index + 1}. "${dup.duplicate.title}" from "${dup.duplicate.podcastTitle}"`);
+                console.log(`   Original: "${dup.original.title}" (ID: ${dup.original.id})`);
+                console.log(`   Duplicate: "${dup.duplicate.title}" (ID: ${dup.duplicate.id})`);
+                console.log(`   Match key: ${dup.key}`);
+                console.log('');
+            });
+            
+            this.showNotification(`⚠️ Found ${duplicates.length} duplicate episodes. Check console for details.`, 'warning');
+            
+            // Ask user if they want to remove duplicates
+            if (confirm(`Found ${duplicates.length} duplicate episodes. Would you like to remove them?\n\nThis will keep the first occurrence of each duplicate and remove the rest.`)) {
+                await this.removeDuplicateEpisodes();
             }
-            
-            console.log(`🔄 Processing ${duplicateBatches.length} batches of up to ${BATCH_SIZE} duplicates each`);
-            
-            for (let batchIndex = 0; batchIndex < duplicateBatches.length; batchIndex++) {
-                const batch = podcastDB.db.batch();
-                const batchDuplicates = duplicateBatches[batchIndex];
-                
-                console.log(`📦 Processing batch ${batchIndex + 1}/${duplicateBatches.length} with ${batchDuplicates.length} duplicates`);
-                
-                for (const duplicate of batchDuplicates) {
-                    // Remove the duplicate episode (keep the original)
-                    console.log(`🗑️ Removing duplicate: "${duplicate.duplicate.title}" from ${duplicate.duplicate.podcastTitle}`);
-                    console.log(`   Keeping: "${duplicate.original.title}" (index ${duplicate.originalIndex})`);
-                    console.log(`   Removing: "${duplicate.duplicate.title}" (index ${duplicate.duplicateIndex})`);
-                    
-                    batch.delete(podcastDB.db.collection('episodes').doc(duplicate.duplicate.id));
-                    removedCount++;
-                }
-                
-                // Commit this batch
-                await batch.commit();
-                console.log(`✅ Batch ${batchIndex + 1} completed: removed ${batchDuplicates.length} duplicates`);
-                
-                // Small delay between batches to avoid overwhelming Firebase
-                if (batchIndex < duplicateBatches.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                }
-            }
-            
-            console.log(`✅ Successfully removed ${removedCount} duplicate episodes`);
-            
-            if (statusEl) {
-                statusEl.textContent = `Removed ${removedCount} duplicate episodes`;
-                statusEl.className = 'sync-status';
-            }
-
-            this.showNotification(`Successfully removed ${removedCount} duplicate episodes from database`);
-            
-            // Reload data to refresh the display
-            await this.loadData();
             
         } catch (error) {
-            console.error('❌ Error removing duplicate episodes:', error);
-            const statusEl = document.getElementById('syncStatus');
+            console.error('❌ Error checking for duplicates:', error);
+            this.showNotification('❌ Failed to check for duplicates', 'error');
             if (statusEl) {
                 statusEl.textContent = 'Failed to remove duplicates';
                 statusEl.className = 'sync-status error';
@@ -1891,6 +2213,58 @@ playFromPlaylist(index) {
         }
     }
 
+    // Remove duplicate episodes from database
+    async removeDuplicateEpisodes() {
+        try {
+            this.showNotification('🔄 Removing duplicate episodes...', 'info');
+            
+            // Get all episodes to identify duplicates directly
+            const allEpisodes = await podcastDB.getAllEpisodes();
+            const episodeMap = new Map();
+            const toRemove = [];
+            
+            // Create map of episodes by duplicate key
+            allEpisodes.forEach(episode => {
+                const key = this.createDuplicateKey(episode);
+                if (!episodeMap.has(key)) {
+                    episodeMap.set(key, []);
+                }
+                episodeMap.get(key).push(episode);
+            });
+            
+            // Find episodes to remove (keep first occurrence of each duplicate)
+            episodeMap.forEach((episodes, key) => {
+                if (episodes.length > 1) {
+                    // Sort by publish date, keep the oldest
+                    episodes.sort((a, b) => new Date(a.publishDate) - new Date(b.publishDate));
+                    // Remove all except the first (oldest)
+                    for (let i = 1; i < episodes.length; i++) {
+                        toRemove.push(episodes[i]);
+                    }
+                }
+            });
+            
+            if (toRemove.length === 0) {
+                this.showNotification('✅ No duplicate episodes found', 'success');
+                return;
+            }
+            
+            // Remove duplicates from database
+            for (const episode of toRemove) {
+                await podcastDB.deleteEpisode(episode.id);
+            }
+            
+            // Reload data
+            await this.loadData();
+            
+            this.showNotification(`✅ Removed ${toRemove.length} duplicate episodes`, 'success');
+            
+        } catch (error) {
+            console.error('❌ Error removing duplicates:', error);
+            this.showNotification('❌ Failed to remove duplicates', 'error');
+        }
+    }
+    
     // Create a comprehensive key for duplicate detection
     createDuplicateKey(episode) {
         // Normalize title for comparison (remove extra spaces, lowercase)
@@ -2015,9 +2389,44 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Register service worker for background sync
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.js')
+        navigator.serviceWorker.register('./service-worker.js')
             .then(registration => {
                 console.log('✅ Service Worker registered for background sync');
+                
+                // Remove aggressive skip waiting to prevent continuous updates
+                // Only force update if there's a waiting worker and user explicitly requests it
+                
+                // Listen for updates
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            console.log('🔄 New service worker available, refresh to activate');
+                            // Don't automatically skip waiting - let user refresh when ready
+                        }
+                    });
+                });
+                
+                // Listen for controller changes
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    console.log('🔄 Service Worker controller changed');
+                    // Remove automatic reload to prevent continuous refresh
+                    // window.location.reload();
+                });
+                
+                // Wait for service worker to activate
+                if (registration.active) {
+                    console.log('✅ Service Worker is already active');
+                } else {
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'activated') {
+                                console.log('✅ Service Worker activated successfully');
+                            }
+                        });
+                    });
+                }
                 
                 // Check for background sync support
                 if ('periodicSync' in registration) {
@@ -2036,7 +2445,12 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(error => {
                 console.error('❌ Service Worker registration failed:', error);
+                // Don't show error to user, just log it - app will work without service worker
+                console.log('📱 App will continue working without background sync');
             });
+    } else {
+        console.log('⚠️ Service Workers not supported in this browser');
+        console.log('📱 App will continue working without background sync');
     }
     
     // Check for episode parameter in URL and play if found

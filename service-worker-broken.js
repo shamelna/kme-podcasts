@@ -1,6 +1,6 @@
-// Service Worker for Background Podcast Updates - FIXED VERSION
-const CACHE_NAME = 'podcast-app-v4';
-const CACHE_VERSION = '4.0.0';
+// Service Worker for Background Podcast Updates
+const CACHE_NAME = 'podcast-app-v3';
+const CACHE_VERSION = '3.0.0';
 
 // Import Firebase scripts at the top level (synchronous)
 importScripts('https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js');
@@ -25,8 +25,8 @@ const CACHE_URLS = [
 self.addEventListener('install', (event) => {
     console.log('🔧 Service Worker installing...');
     
-    // Remove automatic skip waiting to prevent continuous refreshes
-    // self.skipWaiting();
+    // Skip waiting to force immediate activation
+    self.skipWaiting();
     
     event.waitUntil(
         caches.open(CACHE_NAME)
@@ -257,66 +257,67 @@ async function performBackgroundSync() {
                     const itemMatches = rssText.match(/<item>([\s\S]*?)<\/item>/g);
                     if (itemMatches) {
                         itemMatches.forEach(itemText => {
-                            const titleMatch = itemText.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || 
-                                              itemText.match(/<title>(.*?)<\/title>/);
-                            const pubDateMatch = itemText.match(/<pubDate>(.*?)<\/pubDate>/);
-                            const guidMatch = itemText.match(/<guid>(.*?)<\/guid>/) || 
-                                           itemText.match(/<guid[^>]*>(.*?)<\/guid>/);
-                            const enclosureMatch = itemText.match(/<enclosure[^>]*url="([^"]*)"/);
-                            const descMatch = itemText.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/) || 
-                                          itemText.match(/<description>(.*?)<\/description>/);
+                                const titleMatch = itemText.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || 
+                                                  itemText.match(/<title>(.*?)<\/title>/);
+                                const pubDateMatch = itemText.match(/<pubDate>(.*?)<\/pubDate>/);
+                                const guidMatch = itemText.match(/<guid>(.*?)<\/guid>/) || 
+                                               itemText.match(/<guid[^>]*>(.*?)<\/guid>/);
+                                const enclosureMatch = itemText.match(/<enclosure[^>]*url="([^"]*)"/);
+                                const descMatch = itemText.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/) || 
+                                              itemText.match(/<description>(.*?)<\/description>/);
+                                
+                                if (titleMatch) {
+                                    items.push({
+                                        title: titleMatch[1] ? titleMatch[1].trim() : '',
+                                        pubDate: pubDateMatch ? pubDateMatch[1].trim() : '',
+                                        guid: guidMatch ? guidMatch[1].trim() : titleMatch[1],
+                                        audioUrl: enclosureMatch ? enclosureMatch[1] : '',
+                                        description: descMatch ? descMatch[1].trim() : ''
+                                    });
+                                }
+                            });
+                        }
+                        
+                        // Get existing episodes for this podcast
+                        const existingEpisodesSnapshot = await db.collection('episodes')
+                            .where('podcastId', '==', podcast.id)
+                            .get();
+                        const existingEpisodeIds = new Set(existingEpisodesSnapshot.docs.map(doc => doc.id));
+                        
+                        // Check for new episodes
+                        for (const item of items) {
+                            const title = item.title || '';
+                            const pubDate = item.pubDate || '';
+                            const guid = item.guid || title;
+                            const audioUrl = item.audioUrl || '';
+                            const description = item.description || '';
                             
-                            if (titleMatch) {
-                                items.push({
-                                    title: titleMatch[1] ? titleMatch[1].trim() : '',
-                                    pubDate: pubDateMatch ? pubDateMatch[1].trim() : '',
-                                    guid: guidMatch ? guidMatch[1].trim() : titleMatch[1],
-                                    audioUrl: enclosureMatch ? enclosureMatch[1] : '',
-                                    description: descMatch ? descMatch[1].trim() : ''
-                                });
+                            // Generate stable episode ID
+                            const episodeId = generateEpisodeId(title, pubDate, guid, audioUrl, podcast.id);
+                            
+                            if (!existingEpisodeIds.has(episodeId)) {
+                                // Save new episode
+                                const episodeData = {
+                                    id: episodeId,
+                                    title: title,
+                                    description: description,
+                                    publishDate: new Date(pubDate),
+                                    audioUrl: audioUrl,
+                                    podcastId: podcast.id,
+                                    podcastTitle: podcast.title,
+                                    image: podcast.image,
+                                    featured: false,
+                                    featuredOrder: null,
+                                    tags: [],
+                                    genre: podcast.genre || 'general',
+                                    duration: null
+                                };
+                                
+                                await db.collection('episodes').doc(episodeId).set(episodeData);
+                                newEpisodesFound++;
+                                
+                                console.log(`🆕 New episode saved: ${title}`);
                             }
-                        });
-                    }
-                    
-                    // Get existing episodes for this podcast
-                    const existingEpisodesSnapshot = await db.collection('episodes')
-                        .where('podcastId', '==', podcast.id)
-                        .get();
-                    const existingEpisodeIds = new Set(existingEpisodesSnapshot.docs.map(doc => doc.id));
-                    
-                    // Check for new episodes
-                    for (const item of items) {
-                        const title = item.title || '';
-                        const pubDate = item.pubDate || '';
-                        const guid = item.guid || title;
-                        const audioUrl = item.audioUrl || '';
-                        const description = item.description || '';
-                        
-                        // Generate stable episode ID
-                        const episodeId = generateEpisodeId(title, pubDate, guid, audioUrl, podcast.id);
-                        
-                        if (!existingEpisodeIds.has(episodeId)) {
-                            // Save new episode
-                            const episodeData = {
-                                id: episodeId,
-                                title: title,
-                                description: description,
-                                publishDate: new Date(pubDate),
-                                audioUrl: audioUrl,
-                                podcastId: podcast.id,
-                                podcastTitle: podcast.title,
-                                image: podcast.image,
-                                featured: false,
-                                featuredOrder: null,
-                                tags: [],
-                                genre: podcast.genre || 'general',
-                                duration: null
-                            };
-                            
-                            await db.collection('episodes').doc(episodeId).set(episodeData);
-                            newEpisodesFound++;
-                            
-                            console.log(`🆕 New episode saved: ${title}`);
                         }
                     }
                 } catch (error) {
@@ -368,80 +369,131 @@ async function handleSyncRequest(request) {
         
         for (const podcast of podcasts) {
             try {
-                const result = await syncPodcast(podcast);
-                results.push(result);
+                const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(podcast.feedUrl)}`);
+                const data = await response.json();
+                
+                if (data.contents && data.contents.episodes) {
+                    const newEpisodes = data.contents.episodes.slice(-5); // Get latest 5 episodes
+                    results.push({
+                        podcast: podcast.name,
+                        episodes: newEpisodes,
+                        lastUpdated: new Date().toISOString()
+                    });
+                }
             } catch (error) {
-                results.push({
-                    podcast: podcast.title,
-                    success: false,
-                    error: error.message
-                });
+                console.error(`Error syncing ${podcast.name}:`, error);
             }
         }
         
-        return new Response(JSON.stringify({
-            success: true,
-            results: results
-        }), {
+        const response = new Response(JSON.stringify(results), {
             headers: { 'Content-Type': 'application/json' }
         });
+        
+        // Notify main app of new episodes
+        self.clients.matchAll().then(clients => {
+            clients.forEach(client => {
+                client.postMessage({
+                    type: 'NEW_EPISODES',
+                    episodes: results
+                });
+            });
+        });
+        
+        event.respondWith(response);
+        
     } catch (error) {
-        return new Response(JSON.stringify({
-            success: false,
-            error: error.message
-        }), {
+        console.error('Sync request error:', error);
+        event.respondWith(new Response('{"error": "Sync failed"}', {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
-        });
+        }));
     }
 }
 
 // Handle update check requests
 async function handleUpdateCheck(request) {
     try {
-        await performBackgroundSync();
-        return new Response(JSON.stringify({
-            success: true,
-            message: 'Update check completed'
+        const lastSyncTime = localStorage.getItem('lastSyncTime') || '0';
+        const currentTime = Date.now();
+        const timeDiff = currentTime - parseInt(lastSyncTime);
+        const minutesSinceLastSync = Math.floor(timeDiff / (60 * 1000));
+        
+        const shouldUpdate = minutesSinceLastSync > 5; // Update if more than 5 minutes old
+        
+        const response = new Response(JSON.stringify({
+            shouldUpdate,
+            lastSyncTime,
+            minutesSinceLastSync,
+            currentTime
         }), {
             headers: { 'Content-Type': 'application/json' }
         });
+        
+        event.respondWith(response);
+        
     } catch (error) {
-        return new Response(JSON.stringify({
-            success: false,
-            error: error.message
-        }), {
+        console.error('Update check error:', error);
+        event.respondWith(new Response('{"error": "Check failed"}', {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
-        });
+        }));
     }
 }
 
-// Fetch tracked podcasts from Firebase
+// Helper function to fetch tracked podcasts
 async function fetchTrackedPodcasts() {
-    try {
-        const firebaseConfig = {
-            apiKey: "AIzaSyCFC1q7p6MSly1ua50n-XI3yO4NmFCUMj4",
-            authDomain: "kme-podcasts.firebaseapp.com",
-            projectId: "kme-podcasts",
-            storageBucket: "kme-podcasts.firebasestorage.app",
-            messagingSenderId: "635239448486",
-            appId: "1:635239448486:web:57c7f8c39009e3bb4cd967",
-            measurementId: "G-NSEVF9C6G1"
-        };
-        
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
+    // In a real implementation, this would fetch from your database
+    // For demo purposes, return mock data
+    return [
+        {
+            name: 'My Favorite Mistake',
+            feedUrl: 'https://feed.podbean.com/myfavoritemistake/feed.xml'
+        },
+        {
+            name: 'Lean 911',
+            feedUrl: 'https://lean911.com/feed/podcast/lean-911/'
         }
-        
-        const db = firebase.firestore();
-        const snapshot = await db.collection('podcasts').get();
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (error) {
-        console.error('Error fetching podcasts:', error);
-        return [];
-    }
+    ];
 }
+
+// Periodic sync even when app is closed
+setInterval(async () => {
+    try {
+        console.log('🔄 Background sync check...');
+        const podcasts = await fetchTrackedPodcasts();
+        
+        for (const podcast of podcasts) {
+            try {
+                const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(podcast.feedUrl)}`);
+                const data = await response.json();
+                
+                if (data.contents && data.contents.episodes) {
+                    const latestEpisode = data.contents.episodes[data.contents.episodes.length - 1];
+                    const lastKnownEpisode = localStorage.getItem(`last_episode_${podcast.name}`);
+                    
+                    if (latestEpisode && latestEpisode.title !== lastKnownEpisode) {
+                        console.log(`🆕 New episode found: ${latestEpisode.title}`);
+                        
+                        // Notify main app when it opens
+                        self.clients.matchAll().then(clients => {
+                            clients.forEach(client => {
+                                client.postMessage({
+                                    type: 'NEW_EPISODE_ALERT',
+                                    podcast: podcast.name,
+                                    episode: latestEpisode
+                                });
+                            });
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error(`Background sync error for ${podcast.name}:`, error);
+            }
+        }
+    } catch (error) {
+        console.error('Background sync error:', error);
+    }
+}, 10 * 60 * 1000); // Every 10 minutes
 
 console.log('🔧 Service Worker ready for background operations');
 
