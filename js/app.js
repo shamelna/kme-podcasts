@@ -198,25 +198,24 @@ class PodcastApp {
             this.featuredEpisodes = await podcastDB.getFeaturedEpisodes();
             // Limit to 5 episodes
             this.featuredEpisodes = this.featuredEpisodes.slice(0, 5);
-            console.log('📊 Featured episodes loaded:', this.featuredEpisodes.length);
+            console.log('✅ Featured episodes loaded:', this.featuredEpisodes.length);
             
             // Update loading text
             this.updateLoadingText('🎵 Loading Podcasts...', 'Fetching latest episodes...');
             
             // Load latest episodes
             this.latestEpisodes = await podcastDB.getLatestEpisodes(5);
-            console.log('📊 Latest episodes loaded:', this.latestEpisodes.length);
+            console.log('✅ Latest episodes loaded:', this.latestEpisodes.length);
             
             // Update loading text
             this.updateLoadingText('🎵 Loading Podcasts...', 'Loading all episodes...');
             
             // Load all episodes for search and pagination
             this.episodes = await podcastDB.getAllEpisodes();
-            console.log('📊 All episodes loaded:', this.episodes.length);
+            console.log('✅ All episodes loaded:', this.episodes.length);
             
             // Initialize filtered episodes
             this.filteredEpisodes = [...this.episodes];
-            console.log('📊 Filtered episodes initialized:', this.filteredEpisodes.length);
             
             // Update loading text
             this.updateLoadingText('🎵 Loading Podcasts...', 'Setting up interface...');
@@ -302,18 +301,27 @@ class PodcastApp {
         // Reset to first page when filters change
         this.currentPage = 1;
 
-        console.log('🔍 Filtering episodes:', {
-            totalEpisodes: this.episodes.length,
-            searchTerm,
-            podcastValue,
-            sortValue
-        });
+        // Only log search results for debugging (can be enabled/disabled)
+        if (searchTerm && searchTerm.length > 2) {
+            console.log(`🔍 Search: "${searchTerm}" - ${this.episodes.length} total episodes`);
+        }
 
         this.filteredEpisodes = this.episodes.filter(episode => {
-            const matchesSearch = !searchTerm || 
-                episode.title.toLowerCase().includes(searchTerm) ||
-                episode.description.toLowerCase().includes(searchTerm) ||
-                episode.podcastTitle.toLowerCase().includes(searchTerm);
+            let matchesSearch = !searchTerm;
+            
+            if (searchTerm) {
+                // Split search term into individual words and require ALL to be present (AND logic)
+                const searchWords = searchTerm.trim().split(/\s+/).filter(word => word.length > 0);
+                
+                if (searchWords.length > 0) {
+                    // Check if ALL search words are found in any combination of the fields
+                    matchesSearch = searchWords.every(word => 
+                        episode.title.toLowerCase().includes(word) ||
+                        episode.description.toLowerCase().includes(word) ||
+                        episode.podcastTitle.toLowerCase().includes(word)
+                    );
+                }
+            }
 
             const matchesPodcast = !podcastValue || episode.podcastTitle === podcastValue;
             const matchesTopic = true; // Removed topic filter
@@ -321,10 +329,10 @@ class PodcastApp {
             return matchesSearch && matchesPodcast && matchesTopic;
         });
 
-        console.log('🔍 Filtered episodes:', {
-            filteredCount: this.filteredEpisodes.length,
-            matches: this.filteredEpisodes.slice(0, 3).map(e => e.title)
-        });
+        // Only log filtered count when it changes significantly
+        if (this.filteredEpisodes.length !== this.episodes.length) {
+            console.log(`📊 Found ${this.filteredEpisodes.length} episodes`);
+        }
 
         this.sortEpisodes();
         this.displayEpisodes();
@@ -374,8 +382,6 @@ class PodcastApp {
         
         // Update bottom pagination
         this.updatePagination(filteredEpisodes.length, 'bottom');
-        
-        console.log(`📊 Displayed ${paginatedEpisodes.length} episodes (page ${this.currentPage})`);
     }
 
     getFilteredEpisodes() {
@@ -399,7 +405,7 @@ class PodcastApp {
                  alt="${this.escapeHtml(episode.title)}"
                  class="podcast-image"
                  onclick="app.playEpisode('${episode.id}')"
-                 onerror="this.src='https://kaizenmadeeasy.com/mascot%20with%20shadow.png'"
+                 onerror="this.src='https://kaizenmadeeasy.com/mascot%20with%20shadow.png'; console.warn('Image failed to load:', this.src);"
                  data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">
             <div class="podcast-content">
                 <h3 class="podcast-title">${this.escapeHtml(episode.title)}</h3>
