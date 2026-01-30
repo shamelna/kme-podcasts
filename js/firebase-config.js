@@ -220,6 +220,52 @@ class PodcastDatabase {
             throw error;
         }
     }
+
+    // Analytics Methods for Admin Dashboard
+    async trackVisitor(visitorData) {
+        try {
+            await this.db.collection('analytics').doc('visitors').collection('visits').add(visitorData);
+            console.log('✅ Visitor tracked:', visitorData.sessionId);
+        } catch (error) {
+            console.error('Error tracking visitor:', error);
+            throw error;
+        }
+    }
+
+    async trackEpisodePlay(playData) {
+        try {
+            await this.db.collection('analytics').doc('plays').collection('episodes').add(playData);
+            console.log('✅ Episode play tracked:', playData.episodeId);
+        } catch (error) {
+            console.error('Error tracking episode play:', error);
+            throw error;
+        }
+    }
+
+    async getAnalyticsData() {
+        try {
+            // Get visitor stats
+            const visitorsSnapshot = await this.db.collection('analytics').doc('visitors').collection('visits')
+                .orderBy('timestamp', 'desc')
+                .limit(1000)
+                .get();
+
+            // Get play stats
+            const playsSnapshot = await this.db.collection('analytics').doc('plays').collection('episodes')
+                .orderBy('timestamp', 'desc')
+                .limit(1000)
+                .get();
+
+            return {
+                visitors: visitorsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                plays: playsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+            };
+
+        } catch (error) {
+            console.error('Error getting analytics data:', error);
+            return null;
+        }
+    }
 }
 
 // User Data Management for Firebase

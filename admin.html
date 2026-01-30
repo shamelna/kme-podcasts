@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kaizen Podcasts - Admin Dashboard</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .admin-dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .admin-header {
+            background: linear-gradient(135deg, #12385b 0%, #1e5a8e 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .admin-title h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+        
+        .admin-title p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        
+        .admin-nav {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .admin-nav a {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .admin-nav a:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e1e8ed;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+        }
+        
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .stat-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #12385b;
+            margin-bottom: 8px;
+        }
+        
+        .stat-description {
+            color: #64748b;
+            font-size: 0.95rem;
+        }
+        
+        .stat-change {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        
+        .stat-change.positive {
+            background: #10b981;
+            color: white;
+        }
+        
+        .stat-change.negative {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .visitors-icon { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+        .plays-icon { background: linear-gradient(135deg, #10b981, #059669); }
+        .episodes-icon { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .podcasts-icon { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e1e8ed;
+            margin-bottom: 30px;
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+        
+        .chart-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .chart-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .chart-btn {
+            padding: 8px 16px;
+            border: 1px solid #e1e8ed;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+        
+        .chart-btn:hover {
+            background: #f8fafc;
+            border-color: #12385b;
+        }
+        
+        .chart-btn.active {
+            background: #12385b;
+            color: white;
+            border-color: #12385b;
+        }
+        
+        .episode-stats-table {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e1e8ed;
+        }
+        
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+        
+        .search-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f8fafc;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            padding: 10px 15px;
+            width: 300px;
+        }
+        
+        .search-box input {
+            border: none;
+            background: none;
+            outline: none;
+            flex: 1;
+            font-size: 0.95rem;
+        }
+        
+        .episode-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .episode-table th {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 2px solid #e1e8ed;
+            font-weight: 600;
+            color: #64748b;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+        
+        .episode-table td {
+            padding: 15px 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .episode-table tr:hover {
+            background: #f8fafc;
+        }
+        
+        .episode-title {
+            font-weight: 600;
+            color: #12385b;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .episode-podcast {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        
+        .play-count {
+            font-weight: 600;
+            color: #10b981;
+        }
+        
+        .last-played {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #64748b;
+        }
+        
+        .error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .refresh-btn {
+            background: #12385b;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+        }
+        
+        .refresh-btn:hover {
+            background: #1e5a8e;
+            transform: translateY(-2px);
+        }
+        
+        .admin-controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .control-group {
+            background: #f8fafc;
+            border: 1px solid #e1e8ed;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        
+        .control-group h3 {
+            margin: 0 0 15px 0;
+            color: #12385b;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        .admin-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin: 5px;
+            text-decoration: none;
+        }
+        
+        .admin-btn.primary {
+            background: #12385b;
+            color: white;
+        }
+        
+        .admin-btn.primary:hover {
+            background: #1e5a8e;
+            transform: translateY(-2px);
+        }
+        
+        .admin-btn.secondary {
+            background: #64748b;
+            color: white;
+        }
+        
+        .admin-btn.secondary:hover {
+            background: #475569;
+            transform: translateY(-2px);
+        }
+        
+        .admin-btn.warning {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .admin-btn.warning:hover {
+            background: #d97706;
+            transform: translateY(-2px);
+        }
+        
+        .admin-btn.danger {
+            background: #dc2626;
+            color: white;
+        }
+        
+        .admin-btn.danger:hover {
+            background: #b91c1c;
+            transform: translateY(-2px);
+        }
+        
+        .sync-status {
+            background: #f1f5f9;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .status-label {
+            font-weight: 600;
+            color: #64748b;
+        }
+        
+        .status-value {
+            color: #12385b;
+            font-weight: 500;
+        }
+        
+        @media (max-width: 768px) {
+            .admin-dashboard {
+                padding: 15px;
+            }
+            
+            .admin-header {
+                flex-direction: column;
+                text-align: center;
+                gap: 20px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .search-box {
+                width: 100%;
+            }
+            
+            .episode-table {
+                font-size: 0.9rem;
+            }
+            
+            .episode-title {
+                max-width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-dashboard">
+        <!-- Admin Header -->
+        <header class="admin-header">
+            <div class="admin-title">
+                <h1>📊 Admin Dashboard</h1>
+                <p>Kaizen Podcasts Analytics & Management</p>
+            </div>
+            <nav class="admin-nav">
+                <a href="index.html">🏠 Main App</a>
+                <a href="#" onclick="refreshStats()">🔄 Refresh</a>
+                <a href="#" onclick="logout()">🚪 Logout</a>
+            </nav>
+        </header>
+
+        <!-- Error Container -->
+        <div id="errorContainer" class="error" style="display: none;"></div>
+
+        <!-- Statistics Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-title">Total Visitors</div>
+                    <div class="stat-icon visitors-icon">👥</div>
+                </div>
+                <div class="stat-value" id="totalVisitors">-</div>
+                <div class="stat-description">Unique visitors this month</div>
+                <div class="stat-change positive" id="visitorsChange">+0% from last month</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-title">Total Plays</div>
+                    <div class="stat-icon plays-icon">▶️</div>
+                </div>
+                <div class="stat-value" id="totalPlays">-</div>
+                <div class="stat-description">Episode plays this month</div>
+                <div class="stat-change positive" id="playsChange">+0% from last month</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-title">Total Episodes</div>
+                    <div class="stat-icon episodes-icon">🎵</div>
+                </div>
+                <div class="stat-value" id="totalEpisodes">-</div>
+                <div class="stat-description">Episodes in database</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-title">Active Podcasts</div>
+                    <div class="stat-icon podcasts-icon">🎙️</div>
+                </div>
+                <div class="stat-value" id="totalPodcasts">-</div>
+                <div class="stat-description">Podcast sources</div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <h2 class="chart-title">📈 Analytics Overview</h2>
+                <div class="chart-controls">
+                    <button class="chart-btn active" onclick="showChart('visitors')">Visitors</button>
+                    <button class="chart-btn" onclick="showChart('plays')">Plays</button>
+                    <button class="chart-btn" onclick="showChart('episodes')">Top Episodes</button>
+                </div>
+            </div>
+            <div id="chartContent">
+                <canvas id="analyticsChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Episode Statistics Table -->
+        <div class="episode-stats-table">
+            <div class="dashboard-section">
+                <h2>🎵 Episode Performance</h2>
+                <div class="section-controls">
+                    <input type="text" id="episodeSearch" placeholder="🔍 Search episodes..." onkeyup="filterEpisodes()">
+                    <select id="podcastFilter" onchange="filterEpisodes()">
+                        <option value="">All Podcasts</option>
+                    </select>
+                </div>
+                <div class="table-container">
+                    <table id="episodeTable">
+                        <thead>
+                            <tr>
+                                <th>Episode Title</th>
+                                <th>Podcast</th>
+                                <th>Plays</th>
+                                <th>Unique Listeners</th>
+                                <th>Last Played</th>
+                                <th>Avg Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody id="episodeTableBody">
+                            <!-- Episodes will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="dashboard-section">
+                <h2>🔧 Admin Management</h2>
+                <div class="admin-controls-grid">
+                    <div class="control-group">
+                        <h3>📡 Podcast Management</h3>
+                        <button class="admin-btn primary" onclick="showAddPodcastModal()">
+                            <span class="btn-icon">➕</span> Add Podcast
+                        </button>
+                        <button class="admin-btn secondary" onclick="manualSyncAllPodcasts()">
+                            <span class="btn-icon">🔄</span> Manual Sync All
+                        </button>
+                        <button class="admin-btn warning" onclick="removeDuplicateEpisodes()">
+                            <span class="btn-icon">🧹</span> Remove Duplicates
+                        </button>
+                    </div>
+                    
+                    <div class="control-group">
+                        <h3>🗄️ Database Management</h3>
+                        <button class="admin-btn danger" onclick="clearDatabase()">
+                            <span class="btn-icon">🗑️</span> Clear Database
+                        </button>
+                        <button class="admin-btn secondary" onclick="exportData()">
+                            <span class="btn-icon">📥</span> Export Data
+                        </button>
+                    </div>
+                    
+                    <div class="control-group">
+                        <h3>🔄 Auto-Update Controls</h3>
+                        <button class="admin-btn primary" onclick="forceUpdate()">
+                            <span class="btn-icon">🔄</span> Check Now
+                        </button>
+                        <button class="admin-btn secondary" onclick="testBackgroundSync()">
+                            <span class="btn-icon">🧪</span> Test BG Sync
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="sync-status" id="syncStatus">
+                    <div class="status-item">
+                        <span class="status-label">Status:</span>
+                        <span class="status-value" id="updateStatus">Initializing...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Last Sync:</span>
+                        <span class="status-value" id="lastSyncTime">Never</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Cache:</span>
+                        <span class="status-value" id="cacheSize">0 items</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+
+    <!-- App Scripts -->
+    <script src="js/firebase-config.js?v=18"></script>
+    <script src="js/admin-dashboard.js?v=18"></script>
+</body>
+</html>

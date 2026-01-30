@@ -5,7 +5,6 @@ class PodcastApp {
         this.filteredEpisodes = [];
         this.featuredEpisodes = [];
         this.latestEpisodes = [];
-        this.adminMode = false;
         this.allPodcasts = new Set();
         this.currentPage = 1;
         this.episodesPerPage = 50;
@@ -127,9 +126,14 @@ class PodcastApp {
             // Show loading indicator
             this.showLoadingIndicator();
             
+            // Check for admin authentication redirect
+            this.checkAdminRedirect();
+            
+            // Track visitor for admin analytics
+            this.trackVisitor();
+            
             await this.loadData();
             this.setupEventListeners();
-            this.updateAdminPanel();
             
             // Initialize auto-update service integration
             this.setupAutoUpdateIntegration();
@@ -144,6 +148,32 @@ class PodcastApp {
             console.error('Error initializing app:', error);
             this.showError('Failed to load application');
             this.hideLoadingIndicator();
+        }
+    }
+
+    checkAdminRedirect() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const adminRequired = urlParams.get('admin');
+        
+        if (adminRequired === 'required') {
+            // Prompt for admin password
+            const password = prompt('Enter admin password to access admin dashboard:');
+            if (password === 'kaizen2024') {
+                // Save password and redirect to admin dashboard
+                localStorage.setItem('kme-admin-password', 'kaizen2024');
+                window.location.href = 'admin.html';
+            } else if (password !== null) {
+                // Wrong password
+                alert('Incorrect admin password!');
+                // Clean URL to remove admin parameter
+                const cleanUrl = window.location.pathname;
+                window.history.replaceState({}, '', cleanUrl);
+            } else {
+                // User cancelled
+                // Clean URL to remove admin parameter
+                const cleanUrl = window.location.pathname;
+                window.history.replaceState({}, '', cleanUrl);
+            }
         }
     }
 
@@ -213,6 +243,15 @@ class PodcastApp {
             // Load all episodes for search and pagination
             this.episodes = await podcastDB.getAllEpisodes();
             console.log('✅ All episodes loaded:', this.episodes.length);
+            
+            // Extract podcast titles from episodes
+            this.allPodcasts.clear();
+            this.episodes.forEach(episode => {
+                if (episode.podcastTitle) {
+                    this.allPodcasts.add(episode.podcastTitle);
+                }
+            });
+            console.log('✅ Podcast titles extracted:', this.allPodcasts.size);
             
             // Initialize filtered episodes
             this.filteredEpisodes = [...this.episodes];
@@ -430,11 +469,6 @@ class PodcastApp {
                     <button class="action-btn-icon" onclick="app.shareEpisode('${episode.id}')" title="Share">
                         <span class="btn-icon">🔗</span>
                     </button>
-                    ${this.adminMode && !episode.featured ? `
-                        <button class="action-btn-icon admin-btn" onclick="app.featureEpisode('${episode.id}')" title="Feature Episode">
-                            <span class="btn-icon">⭐</span>
-                        </button>
-                    ` : ''}
                 </div>
             </div>
         `;
@@ -752,145 +786,27 @@ class PodcastApp {
         }, 4000);
     }
 
-    // Unfeature all featured episodes at once
-    async unfeatureAllEpisodes() {
-        try {
-            if (!confirm('Are you sure you want to unfeature ALL featured episodes?')) {
-                return;
-            }
-
-            console.log('🔄 Unfeaturing all episodes...');
-            
-            // Get all featured episodes from the episodes collection
-            const featuredSnapshot = await podcastDB.db.collection('episodes')
-                .where('featured', '==', true)
-                .get();
-            
-            const batch = podcastDB.db.batch();
-            
-            featuredSnapshot.forEach(doc => {
-                // Update episode to remove featured status
-                const episodeRef = podcastDB.db.collection('episodes').doc(doc.id);
-                batch.update(episodeRef, {
-                    featured: false,
-                    featuredOrder: null
-                });
-            });
-            
-            await batch.commit();
-            
-            console.log('✅ All episodes unfeatured successfully');
-            
-            // Show success notification
-            this.showNotification('✅ All episodes have been unfeatured', 'success');
-            
-            // Reload data to update UI
-            await this.loadData();
-            
-        } catch (error) {
-            console.error('❌ Error unfeaturing all episodes:', error);
-            this.showNotification('Failed to unfeature episodes', 'error');
-        }
-    }
-
-    toggleAdminMode() {
-        // Check if admin mode is already enabled
-        if (this.adminMode) {
-            // If already enabled, disable it
-            this.adminMode = false;
-            this.updateAdminUI(false);
-            console.log('👨‍💼 Admin mode disabled');
-            this.showNotification('Admin mode disabled', 'info');
-            return;
-        }
-        
-        // If not enabled, require password
-        const password = prompt('Enter admin password:');
-        if (password === 'kaizen2024') {
-            // Correct password - enable admin mode
-            this.adminMode = true;
-            localStorage.setItem('kme-admin-password', 'kaizen2024');
-            this.updateAdminUI(true);
-            console.log('👨‍💼 Admin mode enabled');
-            this.showNotification('Admin mode enabled', 'success');
-        } else if (password !== null) {
-            // Wrong password (but user didn't cancel)
-            this.showNotification('Incorrect password', 'error');
-            console.log('❌ Incorrect admin password entered');
-        }
-        // If user cancelled (password === null), do nothing
-    }
-    
-    updateAdminUI(enable) {
-        // Toggle admin panel visibility
-        const adminPanel = document.getElementById('adminPanel');
-        if (adminPanel) {
-            adminPanel.style.display = enable ? 'block' : 'none';
-        }
-        
-        // Update admin button appearance
-        const adminBtn = document.querySelector('.admin-toggle-btn');
-        if (adminBtn) {
-            if (enable) {
-                adminBtn.classList.add('active');
-                adminBtn.querySelector('span').textContent = 'Admin ✅';
-            } else {
-                adminBtn.classList.remove('active');
-                adminBtn.querySelector('span').textContent = 'Admin';
-            }
-        }
-        
-        // Show/hide admin controls on episode cards
-        const adminControls = document.querySelectorAll('.admin-controls-card');
-        adminControls.forEach(control => {
-            control.classList.toggle('active', enable);
-        });
-        
-        // Show/hide featured admin controls
-        const featuredAdminControls = document.getElementById('featuredAdminControls');
-        if (featuredAdminControls) {
-            featuredAdminControls.style.display = enable ? 'block' : 'none';
-        }
-        
-        // Update filter section to show admin options
-        const filterSection = document.querySelector('.filter-section');
-        if (filterSection) {
-            filterSection.classList.toggle('admin-mode', enable);
-        }
-        
-        // Re-render episodes to show/hide admin controls
-        this.displayEpisodes();
-    }
-
-    updateAdminPanel() {
-        const adminPanel = document.getElementById('adminPanel');
-        if (!adminPanel) {
-            console.warn('Admin panel element not found');
-            return;
-        }
-        
-        // Check for saved admin password
-        const adminPassword = localStorage.getItem('kme-admin-password');
-        if (adminPassword === 'kaizen2024') {
-            this.adminMode = true;
-            this.updateAdminUI(true);
-            console.log('👨‍💼 Admin mode auto-enabled from saved password');
-        } else {
-            this.adminMode = false;
-            this.updateAdminUI(false);
-            console.log('🔒 Admin mode disabled - no valid password found');
-        }
-    }
-
-    // UI helper functions
     populateFilters() {
         const podcastFilter = document.getElementById('podcastFilter');
+        if (!podcastFilter) {
+            console.warn('Podcast filter element not found');
+            return;
+        }
+        
+        // Clear existing options except the first one (All Podcasts)
+        while (podcastFilter.children.length > 1) {
+            podcastFilter.removeChild(podcastFilter.lastChild);
+        }
+        
+        // Add podcast options
         [...this.allPodcasts].sort().forEach(podcast => {
             const option = document.createElement('option');
             option.value = podcast;
             option.textContent = podcast;
             podcastFilter.appendChild(option);
         });
+        
+        console.log(`✅ Populated podcast filter with ${this.allPodcasts.size} podcasts`);
     }
 
     filterByTag(tag) {
@@ -1103,6 +1019,9 @@ class PodcastApp {
         }
         
         console.log('🎵 Playing episode:', episode.title, 'Audio URL:', episode.audioUrl);
+
+        // Track analytics for admin dashboard (silent, non-blocking)
+        this.trackEpisodePlay(episodeId, episode);
 
         // Add to playlist if not already there
         if (!this.playlist.find(e => e.id === episodeId)) {
@@ -2344,34 +2263,8 @@ playFromPlaylist(index) {
             clearFilters.addEventListener('click', () => this.clearFilters());
         }
 
-        // Admin authentication shortcut
+        // Debug: Check current admin status with Ctrl+Shift+D
         document.addEventListener('keydown', (e) => {
-            // Ctrl+Shift+A to toggle admin panel
-            if (e.ctrlKey && e.shiftKey && e.key === 'A') {
-                e.preventDefault();
-                
-                // Check if already in admin mode
-                if (this.adminMode) {
-                    console.log('👨‍💼 Admin mode disabled');
-                    this.adminMode = false;
-                    this.toggleAdminMode();
-                    this.showNotification('Admin mode disabled');
-                } else {
-                    const password = prompt('Enter admin password:');
-                    if (password === 'kaizen2024') {
-                        // Use password-only authentication
-                        this.toggleAdminMode();
-                        localStorage.setItem('kme-admin-password', 'kaizen2024');
-                        this.adminMode = true;
-                        console.log('👨‍💼 Admin mode enabled');
-                        this.showNotification('Admin mode enabled');
-                    } else {
-                        console.log('❌ Incorrect admin password');
-                        this.showNotification('Incorrect admin password', 'error');
-                    }
-                }
-            }
-            
             // Debug: Check current admin status with Ctrl+Shift+D
             if (e.ctrlKey && e.shiftKey && e.key === 'D') {
                 e.preventDefault();
@@ -2382,6 +2275,75 @@ playFromPlaylist(index) {
                 alert(`Admin Mode: ${this.adminMode ? 'ENABLED' : 'DISABLED'}\nPassword Stored: ${localStorage.getItem('kme-admin-password') ? 'YES' : 'NO'}`);
             }
         });
+    }
+
+    // Analytics Tracking Methods (Admin Only)
+    async trackVisitor() {
+        try {
+            // Only track if Firebase is available
+            if (!this.db) return;
+
+            const visitorData = {
+                timestamp: new Date().toISOString(),
+                userAgent: navigator.userAgent,
+                referrer: document.referrer,
+                page: 'main',
+                sessionId: this.getSessionId()
+            };
+
+            // Use Firebase analytics method
+            await window.podcastDB.trackVisitor(visitorData);
+
+        } catch (error) {
+            // Silently fail - analytics shouldn't break the app
+            console.debug('Visitor tracking failed:', error);
+        }
+    }
+
+    async trackEpisodePlay(episodeId, episode) {
+        try {
+            // Only track if Firebase is available
+            if (!this.db) return;
+
+            const playData = {
+                episodeId: episodeId,
+                episodeTitle: episode.title,
+                podcastTitle: episode.podcastTitle,
+                timestamp: new Date().toISOString(),
+                sessionId: this.getSessionId(),
+                userAgent: navigator.userAgent
+            };
+
+            // Use Firebase analytics method
+            await window.podcastDB.trackEpisodePlay(playData);
+
+        } catch (error) {
+            // Silently fail - analytics shouldn't break the app
+            console.debug('Episode play tracking failed:', error);
+        }
+    }
+
+    getSessionId() {
+        // Get or create session ID for tracking
+        let sessionId = sessionStorage.getItem('kme-session-id');
+        if (!sessionId) {
+            sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            sessionStorage.setItem('kme-session-id', sessionId);
+        }
+        return sessionId;
+    }
+
+    async getAnalyticsData() {
+        try {
+            if (!this.db) return null;
+            
+            // Use Firebase analytics method
+            return await window.podcastDB.getAnalyticsData();
+
+        } catch (error) {
+            console.error('Error getting analytics data:', error);
+            return null;
+        }
     }
 }
 

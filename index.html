@@ -190,9 +190,9 @@
                         <p>Built with passion for the continuous improvement community</p>
                     </div>
                     <div class="footer-links">
-                        <button class="footer-link admin-footer" onclick="app.toggleAdminMode()" title="Admin Mode">
-                            ⚙️ Admin
-                        </button>
+                        <a href="admin.html" class="footer-link admin-footer" title="Admin Dashboard">
+                            ⚙️ Admin Dashboard
+                        </a>
                     </div>
                 </div>
             </div>
@@ -279,20 +279,6 @@
                 </div>
             </form>
         </div>
-    </div>
-
-    <!-- Admin Panel -->
-    <div id="adminPanel" class="admin-panel">
-        <h3>🔧 Admin Panel</h3>
-        <div class="admin-controls">
-            <button onclick="window.app.toggleAddPodcastModal()">Add Podcast</button>
-            <button onclick="window.app.manualSyncAllPodcasts()">Manual Sync</button>
-            <button onclick="window.app.removeDuplicateEpisodes()">Remove Duplicates</button>
-            <button disabled>Sync All (Disabled)</button>
-            <button onclick="window.app.clearDatabase()">Clear Database</button>
-        </div>
-        <div class="admin-stats" id="adminStats"></div>
-        <div class="sync-status" id="syncStatus"></div>
     </div>
 
     

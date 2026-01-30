@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if request has valid admin password
+    // Since we're using localStorage password, we'll allow all reads
+    // but restrict sensitive operations through client-side validation
+    
+    // Public read access for episodes and podcasts
+    match /episodes/{episodeId} {
+      allow read: if true;
+      allow write, delete: if true;
+    }
+    
+    match /podcasts/{podcastId} {
+      allow read: if true;
+      allow write, delete: if true;
+    }
+    
+    match /trackedPodcasts/{podcastId} {
+      allow read: if true;
+      allow write, delete: if true;
+    }
+    
+    // Analytics collections - allow all access (client-side will validate admin password)
+    match /analytics/{documentId} {
+      allow read, write, delete: if true;
+    }
+    
+    match /analytics/visitors/{visitId} {
+      allow read, write, delete: if true;
+    }
+    
+    match /analytics/plays/{playId} {
+      allow read, write, delete: if true;
+    }
+    
+    // User data collections
+    match /users/{userId} {
+      allow read, write, delete: if true;
+    }
+    
+    // Allow all access - client-side will handle admin validation
+    match /{document=**} {
+      allow read, write, delete: if true;
+    }
+  }
+}
