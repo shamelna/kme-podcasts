@@ -17,5 +17,8 @@
     "lean"
   ],
   "author": "Kaizen Made Easy",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "sharp": "^0.34.5"
+  }
 }

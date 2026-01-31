@@ -792,7 +792,7 @@ class PodcastApp {
             return;
         }
 
-        const episodes = this.getPaginatedEpisodes();
+        const episodes = this.getPaginatedEpisodes(this.filteredEpisodes);
         
         if (episodes.length === 0) {
             podcastGrid.innerHTML = `
