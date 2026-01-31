@@ -6,23 +6,9 @@ const CACHE_VERSION = '4.0.0';
 importScripts('https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js');
 
-// Initialize Firebase
-const firebaseConfig = {
-    apiKey: "AIzaSyCFC1q7p6MSly1ua50n-XI3yO4NmFCUMj4",
-    authDomain: "kme-podcasts.firebaseapp.com",
-    projectId: "kme-podcasts",
-    storageBucket: "kme-podcasts.appspot.com",
-    messagingSenderId: "635239448486",
-    appId: "1:635239448486:web:57c7f8c39009e3bb4cd967",
-    measurementId: "G-NSEVF9C6G1"
-};
-
-try {
-    firebase.initializeApp(firebaseConfig);
-    // Silent Firebase initialization - no console logs needed
-} catch (error) {
-    // Silent error handling
-}
+// Debug: Check if Firebase is available
+console.log('🔥 Firebase loaded in service worker:', typeof firebase !== 'undefined');
+console.log('🔥 Firebase apps available:', firebase.apps ? firebase.apps.length : 'undefined');
 
 // Files to cache for offline functionality
 const CACHE_URLS = [
@@ -37,31 +23,43 @@ const CACHE_URLS = [
 
 // Install event - cache resources
 self.addEventListener('install', (event) => {
-    // Silent installation
+    console.log('🔧 Service Worker installing...');
+    
+    // Remove automatic skip waiting to prevent continuous refreshes
+    // self.skipWaiting();
     
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
+                console.log('📦 Caching files:', CACHE_URLS);
                 return cache.addAll(CACHE_URLS.map(url => new Request(url, { cache: 'reload' })))
                     .catch(error => {
-                        // Silent error handling - continue installation
+                        console.error('❌ Cache add failed:', error);
+                        // Continue installation even if caching fails
                     });
+            })
+            .then(() => {
+                console.log('✅ Service Worker installed');
             })
     );
 });
 
 // Activate event - clean old caches
 self.addEventListener('activate', (event) => {
+    console.log('🔄 Service Worker activating...');
+    
     event.waitUntil(
         caches.keys().then(cacheNames => {
             return Promise.all(
                 cacheNames.map(cacheName => {
                     if (cacheName !== CACHE_NAME) {
+                        console.log(`🗑️ Deleting old cache: ${cacheName}`);
                         return caches.delete(cacheName);
                     }
                 })
             );
         }).then(() => {
+            console.log('✅ Service Worker activated');
             return self.clients.claim();
         })
     );
@@ -77,6 +75,7 @@ self.addEventListener('message', (event) => {
 // Periodic background sync event
 self.addEventListener('periodicsync', (event) => {
     if (event.tag === 'podcast-sync') {
+        console.log('🔄 Background periodic sync triggered');
         event.waitUntil(performBackgroundSync());
     }
 });
@@ -84,6 +83,7 @@ self.addEventListener('periodicsync', (event) => {
 // Background sync event (manual trigger)
 self.addEventListener('sync', (event) => {
     if (event.tag === 'podcast-sync') {
+        console.log('🔄 Background sync triggered');
         event.waitUntil(performBackgroundSync());
     }
 });

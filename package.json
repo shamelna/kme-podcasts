@@ -1,0 +1,21 @@
+{
+  "name": "kme-podcasts",
+  "version": "1.0.0",
+  "description": "Kaizen Made Easy Podcasts Collection",
+  "main": "index.html",
+  "scripts": {
+    "start": "http-server -p 8080 -c-1",
+    "dev": "http-server -p 8080 -c-1 -o"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  },
+  "keywords": [
+    "podcast",
+    "kaizen",
+    "continuous improvement",
+    "lean"
+  ],
+  "author": "Kaizen Made Easy",
+  "license": "MIT"
+}
