@@ -7,7 +7,7 @@ class PodcastApp {
         this.latestEpisodes = [];
         this.allPodcasts = new Set();
         this.currentPage = 1;
-        this.episodesPerPage = 50;
+        this.episodesPerPage = 25;
         this.totalEpisodes = 0;
         this.audioPlayer = null;
         this.playlist = [];
@@ -256,6 +256,15 @@ class PodcastApp {
             // Initialize filtered episodes
             this.filteredEpisodes = [...this.episodes];
             
+            // Set default sorting to Latest First
+            const sortFilter = document.getElementById('sortFilter');
+            if (sortFilter) {
+                sortFilter.value = 'date-desc';
+            }
+            
+            // Apply default sorting
+            this.sortEpisodes();
+            
             // Update loading text
             this.updateLoadingText('🎵 Loading Podcasts...', 'Setting up interface...');
             
@@ -335,7 +344,7 @@ class PodcastApp {
         
         const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
         const podcastValue = podcastFilter ? podcastFilter.value : '';
-        const sortValue = sortFilter ? sortFilter.value : 'date-desc';
+        const sortValue = sortFilter ? sortFilter.value : 'date-desc';  // Default to Latest First
 
         // Reset to first page when filters change
         this.currentPage = 1;
@@ -381,12 +390,98 @@ class PodcastApp {
         const sortFilter = document.getElementById('sortFilter');
         const sortValue = sortFilter ? sortFilter.value : 'date-desc';
 
+        console.log(`🔄 Sorting episodes by: ${sortValue}`);
+        console.log(`📊 Total episodes to sort: ${this.filteredEpisodes.length}`);
+        
+        // Count episodes with valid dates
+        let validDates = 0;
+        let invalidDates = 0;
+        
+        this.filteredEpisodes.forEach((episode, index) => {
+            if (this.isValidDate(episode.publishDate)) {
+                validDates++;
+            } else {
+                invalidDates++;
+            }
+        });
+        
+        console.log(`📊 Date validation: ${validDates} episodes with valid dates, ${invalidDates} episodes with invalid dates`);
+        
+        // Show first 5 episodes with date info
+        console.log(`📊 First 5 episodes:`, this.filteredEpisodes.slice(0, 5).map(e => ({
+            title: e.title,
+            publishDate: e.publishDate,
+            hasValidDate: this.isValidDate(e.publishDate)
+        })));
+
         switch(sortValue) {
             case 'date-desc':
-                this.filteredEpisodes.sort((a, b) => new Date(b.publishDate) - new Date(a.publishDate));
+                this.filteredEpisodes.sort((a, b) => {
+                    const dateA = this.getValidDate(a.publishDate);
+                    const dateB = this.getValidDate(b.publishDate);
+                    
+                    // If both have valid dates, sort by date (newest first)
+                    if (dateA && dateB) {
+                        return dateB - dateA;
+                    }
+                    // If only A has a valid date, A comes first
+                    if (dateA && !dateB) {
+                        return -1;
+                    }
+                    // If only B has a valid date, B comes first
+                    if (!dateA && dateB) {
+                        return 1;
+                    }
+                    // If neither has valid date, try to extract date from title
+                    const dateFromTitleA = this.extractDateFromTitle(a.title);
+                    const dateFromTitleB = this.extractDateFromTitle(b.title);
+                    
+                    if (dateFromTitleA && dateFromTitleB) {
+                        return dateFromTitleB - dateFromTitleA;
+                    }
+                    if (dateFromTitleA && !dateFromTitleB) {
+                        return -1;
+                    }
+                    if (!dateFromTitleA && dateFromTitleB) {
+                        return 1;
+                    }
+                    // If no dates anywhere, sort by title
+                    return a.title.localeCompare(b.title);
+                });
                 break;
             case 'date-asc':
-                this.filteredEpisodes.sort((a, b) => new Date(a.publishDate) - new Date(b.publishDate));
+                this.filteredEpisodes.sort((a, b) => {
+                    const dateA = this.getValidDate(a.publishDate);
+                    const dateB = this.getValidDate(b.publishDate);
+                    
+                    // If both have valid dates, sort by date (oldest first)
+                    if (dateA && dateB) {
+                        return dateA - dateB;
+                    }
+                    // If only A has a valid date, A comes first
+                    if (dateA && !dateB) {
+                        return -1;
+                    }
+                    // If only B has a valid date, B comes first
+                    if (!dateA && dateB) {
+                        return 1;
+                    }
+                    // If neither has valid date, try to extract date from title
+                    const dateFromTitleA = this.extractDateFromTitle(a.title);
+                    const dateFromTitleB = this.extractDateFromTitle(b.title);
+                    
+                    if (dateFromTitleA && dateFromTitleB) {
+                        return dateFromTitleA - dateFromTitleB;
+                    }
+                    if (dateFromTitleA && !dateFromTitleB) {
+                        return -1;
+                    }
+                    if (!dateFromTitleA && dateFromTitleB) {
+                        return 1;
+                    }
+                    // If no dates anywhere, sort by title
+                    return a.title.localeCompare(b.title);
+                });
                 break;
             case 'title-asc':
                 this.filteredEpisodes.sort((a, b) => a.title.localeCompare(b.title));
@@ -395,6 +490,299 @@ class PodcastApp {
                 this.filteredEpisodes.sort((a, b) => b.title.localeCompare(a.title));
                 break;
         }
+
+        console.log(`📊 First 5 episodes after sort:`, this.filteredEpisodes.slice(0, 5).map(e => ({
+            title: e.title,
+            publishDate: e.publishDate,
+            hasValidDate: this.isValidDate(e.publishDate)
+        })));
+    }
+
+    extractDateFromTitle(title) {
+        // Try to extract year from title patterns like "Episode 123: [2023]" or "Jan 2023"
+        const yearMatch = title.match(/\b(19|20)\d{2}\b/);
+        if (yearMatch) {
+            return new Date(yearMatch[0] + '-01-01'); // Default to January 1st of that year
+        }
+        
+        // Try month-year patterns like "Jan 2023", "February 2024"
+        const monthYearMatch = title.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}\b/i);
+        if (monthYearMatch) {
+            const months = {
+                'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
+                'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+            };
+            const month = months[monthYearMatch[1]];
+            const year = monthYearMatch[2];
+            return new Date(year + '-' + month + '-01');
+        }
+        
+        return null;
+    }
+
+    async analyzeEpisodeFields() {
+        console.log('🔍 Analyzing episode data structure...');
+        
+        try {
+            // Get all episodes from database
+            const episodesSnapshot = await podcastDB.getAllEpisodes();
+            
+            if (episodesSnapshot.length === 0) {
+                console.log('❌ No episodes found in database');
+                return;
+            }
+            
+            // Get all unique field names from episodes
+            const allFields = new Set();
+            episodesSnapshot.forEach(episode => {
+                Object.keys(episode).forEach(field => allFields.add(field));
+            });
+            
+            console.log('📋 All episode fields:', Array.from(allFields));
+            
+            // Analyze date-related fields
+            const dateFields = [];
+            const sampleEpisodes = episodesSnapshot.slice(0, 5);
+            
+            sampleEpisodes.forEach((episode, index) => {
+                console.log(`📊 Episode ${index + 1} data:`, episode);
+                
+                // Check each field for date-like values
+                Object.entries(episode).forEach(([key, value]) => {
+                    if (value && typeof value === 'string') {
+                        // Check if it looks like a date
+                        if (this.isValidDate(value)) {
+                            dateFields.push({ field: key, value: value, episode: episode.title });
+                            console.log(`✅ Date found in field "${key}": ${value} (Episode: ${episode.title})`);
+                        }
+                        // Check for common date field names
+                        else if (key.toLowerCase().includes('date') || key.toLowerCase().includes('time')) {
+                            dateFields.push({ field: key, value: value, episode: episode.title });
+                            console.log(`📅 Date-like field "${key}": ${value} (Episode: ${episode.title})`);
+                        }
+                    }
+                });
+            });
+            
+            // Count episodes by date field
+            const dateFieldCounts = {};
+            episodesSnapshot.forEach(episode => {
+                Object.entries(episode).forEach(([key, value]) => {
+                    if (this.isValidDate(value)) {
+                        dateFieldCounts[key] = (dateFieldCounts[key] || 0) + 1;
+                    }
+                });
+            });
+            
+            console.log('📊 Date field counts:', dateFieldCounts);
+            
+            // Check specific common date field names
+            const commonDateFields = ['publishDate', 'date', 'publishedAt', 'createdAt', 'updated_at', 'pubDate', 'releaseDate'];
+            commonDateFields.forEach(field => {
+                const count = episodesSnapshot.filter(e => e[field] && this.isValidDate(e[field])).length;
+                if (count > 0) {
+                    console.log(`✅ "${field}": ${count} episodes with valid dates`);
+                } else {
+                    console.log(`❌ "${field}": ${count} episodes with valid dates`);
+                }
+            });
+            
+            return {
+                allFields: Array.from(allFields),
+                dateFieldCounts,
+                sampleEpisodes: sampleEpisodes.map(e => ({
+                    title: e.title,
+                    fields: Object.keys(e),
+                    dateFields: Object.entries(e).filter(([k, v]) => this.isValidDate(v))
+                }))
+            };
+            
+        } catch (error) {
+            console.error('❌ Error analyzing episode fields:', error);
+            return null;
+        }
+    }
+
+    async checkDisplayedDates() {
+        console.log('🔍 Checking displayed dates vs database dates...');
+        
+        try {
+            // Get all episodes from database
+            const episodesSnapshot = await podcastDB.getAllEpisodes();
+            
+            // Check first 20 episodes
+            const sampleEpisodes = episodesSnapshot.slice(0, 20);
+            
+            console.log('📊 Checking first 20 episodes:');
+            
+            sampleEpisodes.forEach((episode, index) => {
+                const dbDate = episode.publishDate;
+                const formattedDate = this.formatDate(dbDate);
+                const isValid = this.isValidDate(dbDate);
+                
+                console.log(`${index + 1}. "${episode.title}"`);
+                console.log(`   DB publishDate: ${dbDate}`);
+                console.log(`   Formatted: ${formattedDate}`);
+                console.log(`   Valid: ${isValid}`);
+                console.log('---');
+            });
+            
+            // Count episodes by formatted date type
+            const dateTypes = {
+                'No date available': 0,
+                'Invalid Date': 0,
+                'Valid dates': 0
+            };
+            
+            episodesSnapshot.forEach(episode => {
+                const formatted = this.formatDate(episode.publishDate);
+                if (formatted === 'No date available') {
+                    dateTypes['No date available']++;
+                } else if (formatted === 'Invalid Date') {
+                    dateTypes['Invalid Date']++;
+                } else {
+                    dateTypes['Valid dates']++;
+                }
+            });
+            
+            console.log('📊 Date type breakdown:', dateTypes);
+            
+            return dateTypes;
+            
+        } catch (error) {
+            console.error('❌ Error checking displayed dates:', error);
+            return null;
+        }
+    }
+
+    async investigatePodcastDates(podcastName) {
+        console.log(`🔍 Investigating dates for podcast: "${podcastName}"`);
+        
+        try {
+            // Get all episodes from database
+            const episodesSnapshot = await podcastDB.getAllEpisodes();
+            
+            // Filter episodes by podcast name
+            const podcastEpisodes = episodesSnapshot.filter(episode => 
+                episode.podcastTitle === podcastName
+            );
+            
+            console.log(`📊 Found ${podcastEpisodes.length} episodes for "${podcastName}"`);
+            
+            if (podcastEpisodes.length === 0) {
+                console.log(`❌ No episodes found for podcast "${podcastName}"`);
+                return;
+            }
+            
+            // Analyze dates for this podcast
+            const dateAnalysis = {
+                validDates: 0,
+                invalidDates: 0,
+                nullDates: 0,
+                emptyDates: 0,
+                episodes: []
+            };
+            
+            podcastEpisodes.forEach((episode, index) => {
+                const dbDate = episode.publishDate;
+                const formattedDate = this.formatDate(dbDate);
+                const isValid = this.isValidDate(dbDate);
+                
+                let dateCategory = 'unknown';
+                if (dbDate === null || dbDate === undefined) {
+                    dateCategory = 'null';
+                    dateAnalysis.nullDates++;
+                } else if (dbDate === '') {
+                    dateCategory = 'empty';
+                    dateAnalysis.emptyDates++;
+                } else if (isValid) {
+                    dateCategory = 'valid';
+                    dateAnalysis.validDates++;
+                } else {
+                    dateCategory = 'invalid';
+                    dateAnalysis.invalidDates++;
+                }
+                
+                dateAnalysis.episodes.push({
+                    index: index + 1,
+                    title: episode.title,
+                    dbDate: dbDate,
+                    formattedDate: formattedDate,
+                    isValid: isValid,
+                    category: dateCategory
+                });
+                
+                // Show first 10 episodes in detail
+                if (index < 10) {
+                    console.log(`${index + 1}. "${episode.title}"`);
+                    console.log(`   DB publishDate: ${dbDate}`);
+                    console.log(`   Formatted: ${formattedDate}`);
+                    console.log(`   Valid: ${isValid}`);
+                    console.log(`   Category: ${dateCategory}`);
+                    console.log('---');
+                }
+            });
+            
+            // Show summary
+            console.log(`📊 Date analysis for "${podcastName}":`);
+            console.log(`   Valid dates: ${dateAnalysis.validDates}`);
+            console.log(`   Invalid dates: ${dateAnalysis.invalidDates}`);
+            console.log(`   Null dates: ${dateAnalysis.nullDates}`);
+            console.log(`   Empty dates: ${dateAnalysis.emptyDates}`);
+            console.log(`   Total episodes: ${podcastEpisodes.length}`);
+            
+            // Show date range for valid dates
+            const validEpisodes = dateAnalysis.episodes.filter(e => e.isValid);
+            if (validEpisodes.length > 0) {
+                const dates = validEpisodes.map(e => new Date(e.dbDate));
+                const minDate = new Date(Math.min(...dates));
+                const maxDate = new Date(Math.max(...dates));
+                console.log(`   Date range: ${minDate.toLocaleDateString()} to ${maxDate.toLocaleDateString()}`);
+            }
+            
+            return dateAnalysis;
+            
+        } catch (error) {
+            console.error('❌ Error investigating podcast dates:', error);
+            return null;
+        }
+    }
+
+    getValidDate(dateString) {
+        if (!dateString) return null;
+        
+        try {
+            let date;
+            
+            // Handle Firebase Timestamp objects
+            if (dateString && typeof dateString === 'object' && dateString.toDate) {
+                date = dateString.toDate();
+            }
+            // Handle timestamp with seconds
+            else if (dateString && typeof dateString === 'object' && dateString.seconds) {
+                date = new Date(dateString.seconds * 1000);
+            }
+            // Handle Date objects
+            else if (dateString instanceof Date) {
+                date = dateString;
+            }
+            // Handle strings
+            else {
+                date = new Date(dateString);
+            }
+            
+            // Check if the date is valid (not Invalid Date)
+            if (isNaN(date.getTime())) {
+                return null;
+            }
+            return date;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    isValidDate(dateString) {
+        return this.getValidDate(dateString) !== null;
     }
 
     displayEpisodes() {
@@ -404,27 +792,30 @@ class PodcastApp {
             return;
         }
 
-        const filteredEpisodes = this.getFilteredEpisodes();
-        const paginatedEpisodes = this.getPaginatedEpisodes(filteredEpisodes);
+        const episodes = this.getPaginatedEpisodes();
         
-        // Update top pagination
-        this.updatePagination(filteredEpisodes.length, 'top');
-        
-        // Clear and populate episode grid
+        if (episodes.length === 0) {
+            podcastGrid.innerHTML = `
+                <div class="no-results">
+                    <h3>No episodes found</h3>
+                    <p>Try adjusting your filters or search terms</p>
+                </div>
+            `;
+            this.updatePagination(0);
+            return;
+        }
+
         podcastGrid.innerHTML = '';
         
-        // Add episode cards to grid
-        paginatedEpisodes.forEach(episode => {
+        episodes.forEach(episode => {
             const episodeCard = this.createEpisodeCard(episode);
             podcastGrid.appendChild(episodeCard);
         });
-        
-        // Update bottom pagination
-        this.updatePagination(filteredEpisodes.length, 'bottom');
-    }
 
-    getFilteredEpisodes() {
-        return this.filteredEpisodes;
+        this.updatePagination(this.filteredEpisodes.length);
+        
+        // Add tooltip listeners after creating episode cards
+        setTimeout(() => this.addTooltipListeners(), 100);
     }
 
     getPaginatedEpisodes(episodes) {
@@ -493,7 +884,6 @@ class PodcastApp {
             : document.getElementById('paginationContainer');
             
         if (!paginationContainer) {
-            console.warn(`${position} pagination container not found`);
             return;
         }
 
@@ -509,7 +899,7 @@ class PodcastApp {
         // Previous button
         if (this.currentPage > 1) {
             paginationHTML += `
-                <button class="pagination-btn" onclick="app.goToPage(${this.currentPage - 1})">
+                <button class="pagination-btn" data-page="${this.currentPage - 1}">
                     ← Previous
                 </button>
             `;
@@ -525,7 +915,7 @@ class PodcastApp {
         }
 
         if (startPage > 1) {
-            paginationHTML += `<button class="pagination-btn" onclick="app.goToPage(1)">1</button>`;
+            paginationHTML += `<button class="pagination-btn" data-page="1">1</button>`;
             if (startPage > 2) {
                 paginationHTML += `<span class="pagination-ellipsis">...</span>`;
             }
@@ -534,7 +924,7 @@ class PodcastApp {
         for (let i = startPage; i <= endPage; i++) {
             const isActive = i === this.currentPage;
             paginationHTML += `
-                <button class="pagination-btn ${isActive ? 'active' : ''}" onclick="app.goToPage(${i})">
+                <button class="pagination-btn ${isActive ? 'active' : ''}" data-page="${i}">
                     ${i}
                 </button>
             `;
@@ -544,13 +934,13 @@ class PodcastApp {
             if (endPage < totalPages - 1) {
                 paginationHTML += `<span class="pagination-ellipsis">...</span>`;
             }
-            paginationHTML += `<button class="pagination-btn" onclick="app.goToPage(${totalPages})">${totalPages}</button>`;
+            paginationHTML += `<button class="pagination-btn" data-page="${totalPages}">${totalPages}</button>`;
         }
 
         // Next button
         if (this.currentPage < totalPages) {
             paginationHTML += `
-                <button class="pagination-btn" onclick="app.goToPage(${this.currentPage + 1})">
+                <button class="pagination-btn" data-page="${this.currentPage + 1}">
                     Next →
                 </button>
             `;
@@ -566,12 +956,47 @@ class PodcastApp {
         `;
 
         paginationContainer.innerHTML = paginationHTML;
+        
+        // Add event listeners to pagination buttons
+        const paginationButtons = paginationContainer.querySelectorAll('.pagination-btn');
+        paginationButtons.forEach(button => {
+            const page = parseInt(button.dataset.page);
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                window.app.goToPage(page);
+            });
+        });
+    }
+
+    // Test function for debugging
+    testPagination() {
+        console.log('🧪 testPagination called');
+        console.log('🧪 this.currentPage:', this.currentPage);
+        console.log('🧪 this.getTotalPages():', this.getTotalPages());
+        console.log('🧪 this.filteredEpisodes.length:', this.filteredEpisodes.length);
+        console.log('🧪 this.episodesPerPage:', this.episodesPerPage);
+        return 'testPagination worked';
     }
 
     goToPage(page) {
-        this.currentPage = page;
-        this.displayEpisodes();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        try {
+            const totalPages = Math.ceil(this.filteredEpisodes.length / this.episodesPerPage);
+            
+            if (page < 1 || page > totalPages) {
+                return;
+            }
+            
+            this.currentPage = page;
+            this.displayEpisodes();
+            
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } catch (error) {
+            console.error(`❌ Error in goToPage:`, error);
+        }
+    }
+
+    getTotalPages() {
+        return Math.ceil(this.filteredEpisodes.length / this.episodesPerPage);
     }
     async syncAllPodcasts() {
         const statusEl = document.getElementById('syncStatus');
@@ -964,18 +1389,6 @@ class PodcastApp {
         `;
 
         return paginationHtml;
-    }
-
-    goToPage(page) {
-        if (page >= 1 && page <= Math.ceil(this.totalEpisodes / this.episodesPerPage)) {
-            this.currentPage = page;
-            this.displayEpisodes();
-            
-            // Smooth scroll to top
-            setTimeout(() => {
-                document.getElementById('podcastGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 100);
-        }
     }
 
     loadMoreEpisodes() {
@@ -2354,6 +2767,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Make app globally available for inline event handlers
     window.app = app;
+    
+    // Make database analysis function globally available
+    window.analyzeDatabaseDates = () => app.analyzeDatabaseDates();
+    window.analyzeEpisodeFields = () => app.analyzeEpisodeFields();
+    window.checkDisplayedDates = () => app.checkDisplayedDates();
+    window.investigatePodcastDates = (podcastName) => app.investigatePodcastDates(podcastName);
     
     // Register service worker for background sync
     if ('serviceWorker' in navigator) {

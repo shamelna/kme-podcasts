@@ -509,6 +509,65 @@
 
         <!-- Episode Statistics Table -->
         <div class="episode-stats-table">
+            <!-- Podcast Management Section -->
+            <div class="dashboard-section">
+                <h2>📡 Podcast Management</h2>
+                <div class="admin-controls-grid">
+                    <div class="control-group">
+                        <button class="admin-btn primary" onclick="adminDashboard.showAddPodcastModal()">
+                            <span class="btn-icon">➕</span> Add Podcast
+                        </button>
+                        <button class="admin-btn secondary" onclick="adminDashboard.manualSyncAllPodcasts()">
+                            <span class="btn-icon">🔄</span> Manual Sync All
+                        </button>
+                        <button class="admin-btn warning" onclick="adminDashboard.removeDuplicateEpisodes()">
+                            <span class="btn-icon">🧹</span> Remove Duplicates
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Management Section -->
+            <div class="dashboard-section">
+                <h2>🔧 Admin Management</h2>
+                <div class="admin-controls-grid">
+                    <div class="control-group">
+                        <h3>🗄️ Database Management</h3>
+                        <button class="admin-btn danger" onclick="clearDatabase()">
+                            <span class="btn-icon">🗑️</span> Clear Database
+                        </button>
+                        <button class="admin-btn secondary" onclick="exportData()">
+                            <span class="btn-icon">📥</span> Export Data
+                        </button>
+                    </div>
+                    
+                    <div class="control-group">
+                        <h3>🔄 Auto-Update Controls</h3>
+                        <button class="admin-btn primary" onclick="forceUpdate()">
+                            <span class="btn-icon">🔄</span> Check Now
+                        </button>
+                        <button class="admin-btn secondary" onclick="testBackgroundSync()">
+                            <span class="btn-icon">🧪</span> Test BG Sync
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="sync-status" id="syncStatus">
+                    <div class="status-item">
+                        <span class="status-label">Status:</span>
+                        <span class="status-value" id="updateStatus">Initializing...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Last Sync:</span>
+                        <span class="status-value" id="lastSyncTime">Never</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Cache:</span>
+                        <span class="status-value" id="cacheSize">0 items</span>
+                    </div>
+                </div>
+            </div>
+
             <div class="dashboard-section">
                 <h2>🎵 Episode Performance</h2>
                 <div class="section-controls">
@@ -548,43 +607,6 @@
                     <!-- Pagination buttons will be loaded here -->
                 </div>
             </div>
-
-            <div class="dashboard-section">
-                <h2>🔧 Admin Management</h2>
-                <div class="admin-controls-grid">
-                    <div class="control-group">
-                        <h3>📡 Podcast Management</h3>
-                        <button class="admin-btn primary" onclick="adminDashboard.showAddPodcastModal()">
-                            <span class="btn-icon">➕</span> Add Podcast
-                        </button>
-                        <button class="admin-btn secondary" onclick="adminDashboard.manualSyncAllPodcasts()">
-                            <span class="btn-icon">🔄</span> Manual Sync All
-                        </button>
-                        <button class="admin-btn warning" onclick="adminDashboard.removeDuplicateEpisodes()">
-                            <span class="btn-icon">🧹</span> Remove Duplicates
-                        </button>
-                    </div>
-                    
-                    <div class="control-group">
-                        <h3>🗄️ Database Management</h3>
-                        <button class="admin-btn danger" onclick="clearDatabase()">
-                            <span class="btn-icon">🗑️</span> Clear Database
-                        </button>
-                        <button class="admin-btn secondary" onclick="exportData()">
-                            <span class="btn-icon">📥</span> Export Data
-                        </button>
-                    </div>
-                    
-                    <div class="control-group">
-                        <h3>🔄 Auto-Update Controls</h3>
-                        <button class="admin-btn primary" onclick="forceUpdate()">
-                            <span class="btn-icon">🔄</span> Check Now
-                        </button>
-                        <button class="admin-btn secondary" onclick="testBackgroundSync()">
-                            <span class="btn-icon">🧪</span> Test BG Sync
-                        </button>
-                    </div>
-                </div>
                 
                 <div class="sync-status" id="syncStatus">
                     <div class="status-item">

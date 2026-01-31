@@ -127,8 +127,7 @@ class AdminDashboard {
         try {
             // Check if Firebase is properly initialized
             if (!this.db || !firebase.apps.length) {
-                console.warn('Firebase not properly initialized, using mock episodes');
-                return this.getMockEpisodes();
+                throw new Error('Firebase not properly initialized. Please check your configuration.');
             }
 
             const snapshot = await this.db.collection('episodes')
@@ -189,15 +188,14 @@ class AdminDashboard {
 
         } catch (error) {
             console.error('Error loading episodes:', error);
-            return this.getMockEpisodes();
+            throw new Error(`Failed to load episodes: ${error.message}`);
         }
     }
 
     async loadStatistics() {
         try {
             if (!this.db) {
-                // Fallback to mock statistics
-                return this.getMockStatistics();
+                throw new Error('Firebase not initialized. Please check your configuration.');
             }
 
             // Get real analytics data
@@ -207,12 +205,43 @@ class AdminDashboard {
                 return this.processAnalyticsData(analyticsData);
             }
 
-            return this.getMockStatistics();
+            // If no analytics data, return basic statistics from episodes
+            return this.getBasicStatistics();
 
         } catch (error) {
             console.error('Error loading statistics:', error);
-            return this.getMockStatistics();
+            throw new Error(`Failed to load statistics: ${error.message}`);
         }
+    }
+
+    getBasicStatistics() {
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+        
+        // Calculate basic stats from episodes
+        const uniquePodcasts = new Set(this.episodes.map(e => e.podcastTitle)).size;
+        
+        return {
+            visitors: {
+                total: 0,
+                monthly: {
+                    [currentMonth]: 0,
+                    [lastMonth]: 0
+                },
+                change: 0
+            },
+            plays: {
+                total: 0,
+                monthly: {
+                    [currentMonth]: 0,
+                    [lastMonth]: 0
+                },
+                change: 0
+            },
+            episodes: this.episodes.length,
+            podcasts: uniquePodcasts
+        };
     }
 
     async getRealAnalyticsData() {
@@ -324,82 +353,6 @@ class AdminDashboard {
             },
             episodes: 6584, // This would come from episodes collection
             podcasts: 42 // This would come from podcasts collection
-        };
-    }
-
-    getMockEpisodes() {
-        return [
-            {
-                id: '1',
-                title: 'The Power of Continuous Improvement',
-                podcastTitle: 'Kaizen Made Easy Podcast',
-                playCount: 847,
-                uniqueListeners: 523,
-                lastPlayed: '2024-01-27',
-                avgDuration: 45
-            },
-            {
-                id: '2',
-                title: 'Lean Manufacturing in the Digital Age',
-                podcastTitle: 'Lean Thinking Podcast',
-                playCount: 623,
-                uniqueListeners: 389,
-                lastPlayed: '2024-01-26',
-                avgDuration: 52
-            },
-            {
-                id: '3',
-                title: 'Gemba Walks: Going to the Source',
-                podcastTitle: 'Gemba Academy Podcast',
-                playCount: 456,
-                uniqueListeners: 298,
-                lastPlayed: '2024-01-25',
-                avgDuration: 38
-            },
-            {
-                id: '4',
-                title: '5S Methodology Implementation',
-                podcastTitle: 'Kaizen Made Easy Podcast',
-                playCount: 389,
-                uniqueListeners: 267,
-                lastPlayed: '2024-01-24',
-                avgDuration: 41
-            },
-            {
-                id: '5',
-                title: 'Value Stream Mapping Basics',
-                podcastTitle: 'Lean Thinking Podcast',
-                playCount: 334,
-                uniqueListeners: 234,
-                lastPlayed: '2024-01-23',
-                avgDuration: 47
-            }
-        ];
-    }
-
-    getMockStatistics() {
-        const currentMonth = new Date().getMonth();
-        const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-        
-        return {
-            visitors: {
-                total: 15420,
-                monthly: {
-                    [currentMonth]: 3420,
-                    [lastMonth]: 2890
-                },
-                change: 18.4
-            },
-            plays: {
-                total: 8756,
-                monthly: {
-                    [currentMonth]: 1234,
-                    [lastMonth]: 1056
-                },
-                change: 16.8
-            },
-            episodes: 6584,
-            podcasts: 42
         };
     }
 
@@ -649,12 +602,142 @@ class AdminDashboard {
         try {
             this.showNotification('🔄 Starting podcast sync... This may take a few minutes.', 'info');
             
-            // This would typically call your sync service
-            // For now, we'll simulate the sync
-            setTimeout(() => {
-                this.showNotification('✅ Podcast sync completed successfully!', 'success');
-                this.loadDashboardData(); // Refresh data
-            }, 3000);
+            // Get all podcasts from Firestore
+            const podcastsSnapshot = await this.db.collection('podcasts').where('isActive', '==', true).get();
+            
+            if (podcastsSnapshot.empty) {
+                this.showNotification('ℹ️ No active podcasts found to sync.', 'info');
+                return;
+            }
+            
+            let totalUpdated = 0;
+            let totalNewEpisodes = 0;
+            let errors = [];
+            
+            // Process each podcast
+            for (const podcastDoc of podcastsSnapshot.docs) {
+                const podcast = podcastDoc.data();
+                const podcastId = podcastDoc.id;
+                
+                try {
+                    this.showNotification(`🔄 Syncing "${podcast.title}"...`, 'info');
+                    
+                    // Use CORS proxy for external RSS feeds
+                    const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+                    const fetchUrl = podcast.rssUrl.startsWith('http') ? 
+                        proxyUrl + podcast.rssUrl : 
+                        podcast.rssUrl;
+                    
+                    // Fetch RSS feed
+                    const response = await fetch(fetchUrl, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const rssText = await response.text();
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(rssText, 'text/xml');
+                    
+                    // Check for parsing errors
+                    const parseError = xmlDoc.querySelector('parsererror');
+                    if (parseError) {
+                        throw new Error('Invalid RSS feed format');
+                    }
+                    
+                    // Extract episodes
+                    const items = xmlDoc.querySelectorAll('item');
+                    const newEpisodes = [];
+                    
+                    // Get existing episodes for this podcast
+                    const existingEpisodesSnapshot = await this.db.collection('episodes')
+                        .where('podcastId', '==', podcastId)
+                        .get();
+                    
+                    const existingEpisodeTitles = new Set();
+                    existingEpisodesSnapshot.forEach(doc => {
+                        existingEpisodeTitles.add(doc.data().title);
+                    });
+                    
+                    // Process each episode
+                    items.forEach(item => {
+                        const episodeTitle = item.querySelector('title')?.textContent || '';
+                        const episodeDescription = item.querySelector('description')?.textContent || '';
+                        const pubDate = item.querySelector('pubDate')?.textContent || '';
+                        const episodeUrl = item.querySelector('enclosure')?.getAttribute('url') || '';
+                        const episodeImage = item.querySelector('itunes\\:image')?.getAttribute('href') || podcast.imageUrl || '';
+                        
+                        // Only add if it's a new episode
+                        if (episodeTitle && pubDate && !existingEpisodeTitles.has(episodeTitle)) {
+                            newEpisodes.push({
+                                title: episodeTitle,
+                                description: episodeDescription,
+                                publishDate: new Date(pubDate).toISOString(),
+                                audioUrl: episodeUrl,
+                                image: episodeImage,
+                                podcastTitle: podcast.title,
+                                podcastId: podcastId,
+                                featured: false,
+                                playCount: 0,
+                                uniqueListeners: 0,
+                                lastPlayed: null,
+                                avgDuration: 0
+                            });
+                        }
+                    });
+                    
+                    // Add new episodes to Firestore
+                    if (newEpisodes.length > 0) {
+                        const batch = this.db.batch();
+                        newEpisodes.forEach(episode => {
+                            const episodeRef = this.db.collection('episodes').doc();
+                            batch.set(episodeRef, episode);
+                        });
+                        
+                        await batch.commit();
+                        totalNewEpisodes += newEpisodes.length;
+                    }
+                    
+                    // Update podcast metadata
+                    await this.db.collection('podcasts').doc(podcastId).update({
+                        lastUpdated: new Date().toISOString(),
+                        episodeCount: existingEpisodesSnapshot.size + newEpisodes.length
+                    });
+                    
+                    totalUpdated++;
+                    
+                } catch (error) {
+                    console.error(`Error syncing podcast "${podcast.title}":`, error);
+                    if (error.message.includes('CORS')) {
+                        errors.push(`${podcast.title}: CORS error - RSS feed blocks cross-origin requests`);
+                    } else {
+                        errors.push(`${podcast.title}: ${error.message}`);
+                    }
+                }
+            }
+            
+            // Show final results
+            if (errors.length === 0) {
+                this.showNotification(
+                    `✅ Successfully synced ${totalUpdated} podcasts and added ${totalNewEpisodes} new episodes!`, 
+                    'success'
+                );
+            } else {
+                this.showNotification(
+                    `⚠️ Synced ${totalUpdated} podcasts with ${totalNewEpisodes} new episodes. ${errors.length} errors occurred.`, 
+                    'warning'
+                );
+                
+                // Log errors to console for debugging
+                console.error('Sync errors:', errors);
+            }
+            
+            // Refresh the dashboard data
+            this.loadDashboardData();
             
         } catch (error) {
             console.error('Error syncing podcasts:', error);
@@ -672,12 +755,82 @@ class AdminDashboard {
         try {
             this.showNotification('🔄 Scanning for duplicate episodes...', 'info');
             
-            // This would typically find and remove duplicates
-            // For now, we'll simulate the process
-            setTimeout(() => {
-                this.showNotification('✅ Removed 5 duplicate episodes successfully!', 'success');
-                this.loadDashboardData(); // Refresh data
-            }, 2000);
+            // Get all episodes
+            const episodesSnapshot = await this.db.collection('episodes').get();
+            
+            if (episodesSnapshot.empty) {
+                this.showNotification('ℹ️ No episodes found to scan for duplicates.', 'info');
+                return;
+            }
+            
+            // Group episodes by title + podcast combination
+            const episodeGroups = new Map();
+            
+            episodesSnapshot.forEach(doc => {
+                const episode = doc.data();
+                const key = `${episode.title.toLowerCase().trim()}-${episode.podcastTitle.toLowerCase().trim()}`;
+                
+                if (!episodeGroups.has(key)) {
+                    episodeGroups.set(key, []);
+                }
+                episodeGroups.get(key).push({
+                    id: doc.id,
+                    ...episode
+                });
+            });
+            
+            // Find duplicates (groups with more than 1 episode)
+            const duplicates = [];
+            let totalDuplicates = 0;
+            
+            episodeGroups.forEach((episodes, key) => {
+                if (episodes.length > 1) {
+                    // Sort by publish date (newest first) to keep the latest
+                    episodes.sort((a, b) => new Date(b.publishDate) - new Date(a.publishDate));
+                    
+                    // Mark all but the newest as duplicates
+                    for (let i = 1; i < episodes.length; i++) {
+                        duplicates.push(episodes[i]);
+                        totalDuplicates++;
+                    }
+                }
+            });
+            
+            if (totalDuplicates === 0) {
+                this.showNotification('✅ No duplicate episodes found!', 'success');
+                return;
+            }
+            
+            // Confirm the specific duplicates
+            const duplicateList = duplicates.slice(0, 5).map(d => `• "${d.title}" (${d.podcastTitle})`).join('\n');
+            const moreText = duplicates.length > 5 ? `\n... and ${duplicates.length - 5} more` : '';
+            
+            if (!confirm(`Found ${totalDuplicates} duplicate episodes:\n\n${duplicateList}${moreText}\n\nDelete the older duplicates?`)) {
+                return;
+            }
+            
+            this.showNotification(`🔄 Removing ${totalDuplicates} duplicate episodes...`, 'info');
+            
+            // Delete duplicates in batches
+            const batchSize = 500; // Firestore batch limit
+            let deletedCount = 0;
+            
+            for (let i = 0; i < duplicates.length; i += batchSize) {
+                const batch = this.db.batch();
+                const batchEnd = Math.min(i + batchSize, duplicates.length);
+                
+                for (let j = i; j < batchEnd; j++) {
+                    batch.delete(this.db.collection('episodes').doc(duplicates[j].id));
+                }
+                
+                await batch.commit();
+                deletedCount += (batchEnd - i);
+            }
+            
+            this.showNotification(`✅ Successfully removed ${deletedCount} duplicate episodes!`, 'success');
+            
+            // Refresh the dashboard data
+            this.loadDashboardData();
             
         } catch (error) {
             console.error('Error removing duplicates:', error);
@@ -758,7 +911,12 @@ class AdminDashboard {
             }
             
             if (result) {
-                this.showNotification(`✅ Successfully added "${result.podcast.title}"!`, 'success');
+                const episodeCount = result.episodes.length;
+                const episodeText = episodeCount === 1 ? 'episode' : 'episodes';
+                this.showNotification(
+                    `✅ Successfully added "${result.podcast.title}" with ${episodeCount} ${episodeText}!`, 
+                    'success'
+                );
                 this.closeAddPodcastModal();
                 
                 // Refresh the episodes list after a short delay
@@ -789,40 +947,271 @@ class AdminDashboard {
 
     async addRSSPodcast(rssFeedUrl) {
         try {
-            // This would typically call your RSS parsing service
-            // For now, we'll simulate adding to Firestore
+            this.showNotification('🔄 Fetching RSS feed...', 'info');
+            
+            // Try multiple CORS proxy options
+            const proxyOptions = [
+                'https://cors-anywhere.herokuapp.com/',
+                'https://api.allorigins.win/raw?url=',
+                'https://corsproxy.io/?',
+                'https://thingproxy.freeboard.io/fetch/'
+            ];
+            
+            let rssText = null;
+            let lastError = null;
+            
+            // Try direct fetch first (in case CORS is allowed)
+            try {
+                const directResponse = await fetch(rssFeedUrl);
+                if (directResponse.ok) {
+                    rssText = await directResponse.text();
+                    this.showNotification('✅ Direct fetch successful (no proxy needed)', 'info');
+                }
+            } catch (directError) {
+                console.log('Direct fetch failed, trying proxies...');
+            }
+            
+            // If direct fetch failed, try proxies
+            if (!rssText) {
+                for (const proxyUrl of proxyOptions) {
+                    try {
+                        this.showNotification(`🔄 Trying proxy: ${proxyUrl}...`, 'info');
+                        
+                        let fetchUrl;
+                        if (proxyUrl.includes('allorigins.win')) {
+                            fetchUrl = proxyUrl + encodeURIComponent(rssFeedUrl);
+                        } else if (proxyUrl.includes('corsproxy.io')) {
+                            fetchUrl = proxyUrl + rssFeedUrl;
+                        } else if (proxyUrl.includes('thingproxy')) {
+                            fetchUrl = proxyUrl + encodeURIComponent(rssFeedUrl);
+                        } else {
+                            fetchUrl = proxyUrl + rssFeedUrl;
+                        }
+                        
+                        const response = await fetch(fetchUrl, {
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'application/rss+xml, application/xml, text/xml'
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            rssText = await response.text();
+                            this.showNotification(`✅ Proxy successful: ${proxyUrl}`, 'info');
+                            break;
+                        } else {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                    } catch (proxyError) {
+                        console.warn(`Proxy ${proxyUrl} failed:`, proxyError);
+                        lastError = proxyError;
+                        continue;
+                    }
+                }
+            }
+            
+            if (!rssText) {
+                throw new Error('Unable to fetch RSS feed. All proxy options failed. The RSS feed may be protected or unavailable.');
+            }
+            
+            // Parse RSS feed
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(rssText, 'text/xml');
+            
+            // Check for parsing errors
+            const parseError = xmlDoc.querySelector('parsererror');
+            if (parseError) {
+                throw new Error('Invalid RSS feed format');
+            }
+            
+            // Extract podcast information
+            const channel = xmlDoc.querySelector('channel');
+            if (!channel) {
+                throw new Error('No channel found in RSS feed');
+            }
+            
+            const title = channel.querySelector('title')?.textContent || 'Unknown Podcast';
+            const description = channel.querySelector('description')?.textContent || '';
+            const websiteUrl = channel.querySelector('link')?.textContent || rssFeedUrl;
+            const imageUrl = channel.querySelector('image url')?.textContent || 
+                           channel.querySelector('itunes\\:image')?.getAttribute('href') || '';
+            
+            // Extract episodes
+            const items = xmlDoc.querySelectorAll('item');
+            const episodes = [];
+            
+            items.forEach((item, index) => {
+                const episodeTitle = item.querySelector('title')?.textContent || '';
+                const episodeDescription = item.querySelector('description')?.textContent || '';
+                const pubDate = item.querySelector('pubDate')?.textContent || '';
+                const episodeUrl = item.querySelector('enclosure')?.getAttribute('url') || '';
+                const episodeImage = item.querySelector('itunes\\:image')?.getAttribute('href') || imageUrl;
+                
+                if (episodeTitle && pubDate) {
+                    episodes.push({
+                        title: episodeTitle,
+                        description: episodeDescription,
+                        publishDate: new Date(pubDate).toISOString(),
+                        audioUrl: episodeUrl,
+                        image: episodeImage,
+                        podcastTitle: title,
+                        podcastId: null, // Will be set after podcast is created
+                        featured: false,
+                        playCount: 0,
+                        uniqueListeners: 0,
+                        lastPlayed: null,
+                        avgDuration: 0
+                    });
+                }
+            });
+            
+            // Add podcast to Firestore
             const podcastData = {
-                title: 'New Podcast from RSS',
-                rssUrl: rssFeedUrl,
-                websiteUrl: rssFeedUrl,
+                title: title,
+                description: description,
+                rssUrl: rssFeedUrl, // Store original URL without proxy
+                websiteUrl: websiteUrl,
+                imageUrl: imageUrl,
                 lastUpdated: new Date().toISOString(),
                 isActive: true,
-                episodeCount: 0
+                episodeCount: episodes.length
             };
             
-            // Add to Firestore
-            const docRef = await this.db.collection('podcasts').add(podcastData);
+            const podcastRef = await this.db.collection('podcasts').add(podcastData);
+            
+            // Add episodes to Firestore
+            if (episodes.length > 0) {
+                const batch = this.db.batch();
+                
+                episodes.forEach(episode => {
+                    episode.podcastId = podcastRef.id;
+                    const episodeRef = this.db.collection('episodes').doc();
+                    batch.set(episodeRef, episode);
+                });
+                
+                await batch.commit();
+            }
             
             return {
-                podcast: { ...podcastData, id: docRef.id },
-                episodes: []
+                podcast: { ...podcastData, id: podcastRef.id },
+                episodes: episodes
             };
             
         } catch (error) {
-            throw new Error(`Failed to add RSS podcast: ${error.message}`);
+            console.error('Error adding RSS podcast:', error);
+            
+            if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                throw new Error('Network error: Could not fetch RSS feed. This could be due to:\n• CORS restrictions\n• Network connectivity issues\n• RSS feed server blocking requests\n\nTry a different RSS feed or contact the podcast provider.');
+            } else if (error.message.includes('HTTP 403')) {
+                throw new Error('Access denied (403). The RSS feed server is blocking requests. This is common with commercial platforms like Kajabi. Try:\n• Using a different RSS feed URL\n• Contacting the podcast provider for a public RSS feed\n• Using a server-side proxy solution');
+            } else if (error.message.includes('HTTP 404')) {
+                throw new Error('RSS feed not found (404). Please check the URL and ensure it\'s a valid RSS feed.');
+            } else if (error.message.includes('Unable to fetch RSS feed')) {
+                throw new Error('RSS feed unavailable. All proxy options failed. This RSS feed may be protected or temporarily unavailable. Please try:\n• A different RSS feed URL\n• A different podcast platform\n• Contacting support for assistance');
+            } else if (error.message.includes('Invalid RSS feed format')) {
+                throw new Error('Invalid RSS feed format. The URL may not point to a valid RSS feed. Please verify the RSS feed URL.');
+            } else if (error.message.includes('No channel found')) {
+                throw new Error('Invalid RSS feed: No channel information found. The feed may be corrupted or incomplete.');
+            } else {
+                throw new Error(`Failed to process RSS feed: ${error.message}`);
+            }
         }
     }
 
     async discoverAndAddRSSPodcast(websiteUrl) {
         try {
-            // This would typically discover RSS feed from website
-            // For now, we'll simulate discovery
-            const discoveredRssUrl = websiteUrl + '/feed.xml';
+            this.showNotification('🔄 Discovering RSS feed from website...', 'info');
             
-            return await this.addRSSPodcast(discoveredRssUrl);
+            // Fetch the website HTML
+            const response = await fetch(websiteUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const htmlText = await response.text();
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(htmlText, 'text/html');
+            
+            // Look for RSS feed links in common locations
+            const rssSelectors = [
+                'link[type="application/rss+xml"]',
+                'link[type="application/atom+xml"]',
+                'link[rel="alternate"][type*="rss"]',
+                'link[rel="alternate"][type*="atom"]'
+            ];
+            
+            let rssUrl = null;
+            
+            // Try to find RSS link in HTML head
+            for (const selector of rssSelectors) {
+                const link = htmlDoc.querySelector(selector);
+                if (link) {
+                    rssUrl = link.getAttribute('href');
+                    if (rssUrl) {
+                        // Convert relative URL to absolute
+                        if (rssUrl.startsWith('/')) {
+                            const url = new URL(websiteUrl);
+                            rssUrl = `${url.protocol}//${url.host}${rssUrl}`;
+                        } else if (!rssUrl.startsWith('http')) {
+                            rssUrl = new URL(rssUrl, websiteUrl).href;
+                        }
+                        break;
+                    }
+                }
+            }
+            
+            // If not found in HTML, try common RSS feed paths
+            if (!rssUrl) {
+                const commonPaths = [
+                    '/feed.xml',
+                    '/rss.xml',
+                    '/feed/',
+                    '/rss/',
+                    '/podcast.xml',
+                    '/podcast/feed.xml',
+                    '/index.rss'
+                ];
+                
+                const url = new URL(websiteUrl);
+                const baseUrl = `${url.protocol}//${url.host}`;
+                
+                for (const path of commonPaths) {
+                    try {
+                        const testUrl = baseUrl + path;
+                        const testResponse = await fetch(testUrl, { method: 'HEAD' });
+                        if (testResponse.ok) {
+                            rssUrl = testUrl;
+                            break;
+                        }
+                    } catch (e) {
+                        // Continue trying other paths
+                    }
+                }
+            }
+            
+            if (!rssUrl) {
+                throw new Error('Could not find RSS feed on this website. Please enter the RSS feed URL directly.');
+            }
+            
+            this.showNotification(`✅ Found RSS feed: ${rssUrl}`, 'info');
+            
+            // Now add the podcast using the discovered RSS URL
+            return await this.addRSSPodcast(rssUrl);
             
         } catch (error) {
-            throw new Error(`Failed to discover RSS feed: ${error.message}`);
+            console.error('Error discovering RSS feed:', error);
+            
+            if (error.message.includes('fetch')) {
+                throw new Error('Could not access the website. Please check the URL and your connection.');
+            } else if (error.message.includes('HTTP 404')) {
+                throw new Error('Website not found (404). Please check the URL.');
+            } else if (error.message.includes('HTTP 403')) {
+                throw new Error('Access denied (403). The website may be protected.');
+            } else if (error.message.includes('Could not find RSS feed')) {
+                throw new Error('No RSS feed found on this website. Please enter the RSS feed URL directly.');
+            } else {
+                throw new Error(`Failed to discover RSS feed: ${error.message}`);
+            }
         }
     }
 
@@ -833,33 +1222,46 @@ class AdminDashboard {
         // Clear previous chart
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // Simple chart implementation (in production, use Chart.js or similar)
-        this.drawSimpleChart(ctx, type);
+        // Use real analytics data
+        this.drawRealChart(ctx, type);
     }
 
-    drawSimpleChart(ctx, type) {
+    drawRealChart(ctx, type) {
         const width = ctx.canvas.width;
         const height = ctx.canvas.height;
         const padding = 40;
         
-        // Sample data for the last 7 days
-        const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        // Get real data from stats
         let data = [];
         let color = '';
+        let title = '';
         
         switch(type) {
             case 'visitors':
-                data = [120, 145, 132, 178, 156, 189, 167];
+                data = this.getMonthlyData(this.stats.visitors.monthly);
                 color = '#3b82f6';
+                title = 'Visitors';
                 break;
             case 'plays':
-                data = [89, 102, 95, 134, 112, 145, 128];
+                data = this.getMonthlyData(this.stats.plays.monthly);
                 color = '#10b981';
+                title = 'Plays';
                 break;
             case 'episodes':
-                data = [45, 52, 48, 67, 58, 72, 63];
+                // Show episode count over time (last 6 months)
+                data = this.getEpisodeGrowthData();
                 color = '#f59e0b';
+                title = 'Episodes';
                 break;
+        }
+        
+        if (data.length === 0) {
+            // Show no data message
+            ctx.fillStyle = '#64748b';
+            ctx.font = '16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('No data available', width / 2, height / 2);
+            return;
         }
         
         // Draw axes
@@ -872,14 +1274,14 @@ class AdminDashboard {
         ctx.stroke();
         
         // Draw data
-        const maxValue = Math.max(...data);
+        const maxValue = Math.max(...data.map(d => d.value));
         const chartWidth = width - (padding * 2);
         const chartHeight = height - (padding * 2);
         const barWidth = chartWidth / data.length * 0.6;
         const spacing = chartWidth / data.length;
         
-        data.forEach((value, index) => {
-            const barHeight = (value / maxValue) * chartHeight;
+        data.forEach((item, index) => {
+            const barHeight = (item.value / maxValue) * chartHeight;
             const x = padding + (index * spacing) + (spacing - barWidth) / 2;
             const y = height - padding - barHeight;
             
@@ -891,18 +1293,66 @@ class AdminDashboard {
             ctx.fillStyle = '#64748b';
             ctx.font = '12px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(labels[index], x + barWidth / 2, height - padding + 20);
+            ctx.fillText(item.label, x + barWidth / 2, height - padding + 20);
             
             // Draw value
-            ctx.fillText(value.toString(), x + barWidth / 2, y - 5);
+            ctx.fillText(item.value.toString(), x + barWidth / 2, y - 5);
         });
         
         // Draw title
         ctx.fillStyle = '#2c3e50';
         ctx.font = 'bold 16px sans-serif';
         ctx.textAlign = 'center';
-        const title = type.charAt(0).toUpperCase() + type.slice(1);
-        ctx.fillText(`${title} (Last 7 Days)`, width / 2, 20);
+        ctx.fillText(`${title} (Last 6 Months)`, width / 2, 20);
+    }
+
+    getMonthlyData(monthlyData) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const currentMonth = new Date().getMonth();
+        const data = [];
+        
+        // Get last 6 months
+        for (let i = 5; i >= 0; i--) {
+            const monthIndex = (currentMonth - i + 12) % 12;
+            const monthName = months[monthIndex];
+            const value = monthlyData[monthIndex] || 0;
+            data.push({ label: monthName, value });
+        }
+        
+        return data;
+    }
+
+    getEpisodeGrowthData() {
+        // Calculate episode growth over time
+        const episodesByMonth = {};
+        
+        this.episodes.forEach(episode => {
+            if (episode.publishDate) {
+                const date = new Date(episode.publishDate);
+                const monthKey = date.toISOString().slice(0, 7); // YYYY-MM
+                episodesByMonth[monthKey] = (episodesByMonth[monthKey] || 0) + 1;
+            }
+        });
+        
+        // Get last 6 months of episode growth
+        const data = [];
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const currentMonth = new Date().getMonth();
+        const currentYear = new Date().getFullYear();
+        
+        let cumulativeCount = 0;
+        
+        for (let i = 5; i >= 0; i--) {
+            const monthIndex = (currentMonth - i + 12) % 12;
+            const year = monthIndex > currentMonth ? currentYear - 1 : currentYear;
+            const monthKey = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+            const monthName = months[monthIndex];
+            
+            cumulativeCount += episodesByMonth[monthKey] || 0;
+            data.push({ label: monthName, value: cumulativeCount });
+        }
+        
+        return data;
     }
 
     setupEventListeners() {
