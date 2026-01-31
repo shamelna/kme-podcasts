@@ -228,21 +228,18 @@ class PodcastApp {
             this.featuredEpisodes = await podcastDB.getFeaturedEpisodes();
             // Limit to 5 episodes
             this.featuredEpisodes = this.featuredEpisodes.slice(0, 5);
-            console.log('✅ Featured episodes loaded:', this.featuredEpisodes.length);
             
             // Update loading text
             this.updateLoadingText('🎵 Loading Podcasts...', 'Fetching latest episodes...');
             
             // Load latest episodes
             this.latestEpisodes = await podcastDB.getLatestEpisodes(5);
-            console.log('✅ Latest episodes loaded:', this.latestEpisodes.length);
             
             // Update loading text
             this.updateLoadingText('🎵 Loading Podcasts...', 'Loading all episodes...');
             
             // Load all episodes for search and pagination
             this.episodes = await podcastDB.getAllEpisodes();
-            console.log('✅ All episodes loaded:', this.episodes.length);
             
             // Extract podcast titles from episodes
             this.allPodcasts.clear();
@@ -251,7 +248,6 @@ class PodcastApp {
                     this.allPodcasts.add(episode.podcastTitle);
                 }
             });
-            console.log('✅ Podcast titles extracted:', this.allPodcasts.size);
             
             // Initialize filtered episodes
             this.filteredEpisodes = [...this.episodes];
@@ -434,31 +430,38 @@ class PodcastApp {
     }
 
     createEpisodeCard(episode) {
-        // Ensure episode has a valid image URL
-        const imageUrl = episode.image || episode.thumbnail || 'https://kaizenmadeeasy.com/mascot%20with%20shadow.png';
-        
         const card = document.createElement('div');
-        card.className = 'podcast-card';
+        card.className = 'episode-card';
+        card.id = `episode-${episode.id}`;
+        
+        // Handle image errors gracefully
+        const imageHtml = episode.image ? 
+            `<img src="${episode.image}" alt="${episode.podcastTitle}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+             <div class="episode-image-placeholder" style="display: none;">
+                 <span class="placeholder-icon">🎙️</span>
+             </div>` :
+            `<div class="episode-image-placeholder">
+                 <span class="placeholder-icon">🎙️</span>
+             </div>`;
+        
         card.innerHTML = `
-            <img src="${imageUrl}"
-                 alt="${this.escapeHtml(episode.title)}"
-                 class="podcast-image"
-                 onclick="app.playEpisode('${episode.id}')"
-                 onerror="this.src='https://kaizenmadeeasy.com/mascot%20with%20shadow.png'; console.warn('Image failed to load:', this.src);"
-                 data-description="${this.escapeHtml(this.getCleanDescription(episode.description))}">
-            <div class="podcast-content">
-                <h3 class="podcast-title">${this.escapeHtml(episode.title)}</h3>
-                <p class="podcast-channel">
-                    <span class="channel-icon">🎙️</span>
-                    ${this.escapeHtml(episode.podcastTitle)}
-                </p>
-                <p class="podcast-date">${this.formatDate(episode.publishDate)}</p>
+            <div class="episode-image">
+                ${imageHtml}
+            </div>
+            <div class="episode-content">
+                <div class="episode-header">
+                    <h3 class="episode-title">${this.escapeHtml(episode.title)}</h3>
+                    <div class="episode-meta">
+                        <span class="episode-podcast">${this.escapeHtml(episode.podcastTitle)}</span>
+                        <span class="episode-date">${this.formatDate(episode.publishDate)}</span>
+                    </div>
+                </div>
+                <div class="episode-description">
+                    <p>${this.escapeHtml(episode.description || 'No description available').substring(0, 150)}...</p>
+                </div>
                 <div class="episode-actions">
-                    <button class="action-btn-icon" onclick="app.playEpisode('${episode.id}')" title="Play">
+                    <button class="action-btn-icon" onclick="app.playEpisode('${episode.id}')" title="Play Episode">
                         <span class="btn-icon">▶️</span>
-                    </button>
-                    <button class="action-btn-icon" onclick="app.addToPlaylist('${episode.id}')" title="Add to Playlist">
-                        <span class="btn-icon">➕</span>
                     </button>
                     <button class="action-btn-icon" onclick="app.toggleFavorite('${episode.id}')" title="Add to Favorites">
                         <span class="btn-icon">🤍</span>
@@ -789,7 +792,6 @@ class PodcastApp {
     populateFilters() {
         const podcastFilter = document.getElementById('podcastFilter');
         if (!podcastFilter) {
-            console.warn('Podcast filter element not found');
             return;
         }
         
@@ -805,8 +807,6 @@ class PodcastApp {
             option.textContent = podcast;
             podcastFilter.appendChild(option);
         });
-        
-        console.log(`✅ Populated podcast filter with ${this.allPodcasts.size} podcasts`);
     }
 
     filterByTag(tag) {
@@ -2359,38 +2359,32 @@ document.addEventListener('DOMContentLoaded', () => {
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./service-worker.js')
             .then(registration => {
-                console.log('✅ Service Worker registered for background sync');
-                
-                // Remove aggressive skip waiting to prevent continuous updates
-                // Only force update if there's a waiting worker and user explicitly requests it
+                // Silent service worker registration
                 
                 // Listen for updates
                 registration.addEventListener('updatefound', () => {
                     const newWorker = registration.installing;
                     newWorker.addEventListener('statechange', () => {
                         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            console.log('🔄 New service worker available, refresh to activate');
-                            // Don't automatically skip waiting - let user refresh when ready
+                            // Silent update notification
                         }
                     });
                 });
                 
                 // Listen for controller changes
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
-                    console.log('🔄 Service Worker controller changed');
-                    // Remove automatic reload to prevent continuous refresh
-                    // window.location.reload();
+                    // Silent controller change notification
                 });
                 
                 // Wait for service worker to activate
                 if (registration.active) {
-                    console.log('✅ Service Worker is already active');
+                    // Silent activation
                 } else {
                     registration.addEventListener('updatefound', () => {
                         const newWorker = registration.installing;
                         newWorker.addEventListener('statechange', () => {
                             if (newWorker.state === 'activated') {
-                                console.log('✅ Service Worker activated successfully');
+                                // Silent activation
                             }
                         });
                     });
@@ -2398,27 +2392,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Check for background sync support
                 if ('periodicSync' in registration) {
-                    console.log('🔄 Background Periodic Sync supported');
                     // Request permission for periodic sync
                     registration.periodicSync.register('podcast-sync', {
                         minInterval: 60 * 60 * 1000 // 1 hour
                     }).then(() => {
-                        console.log('✅ Periodic sync registered');
+                        // Silent periodic sync registration
                     }).catch(err => {
-                        console.log('⚠️ Periodic sync registration failed:', err);
+                        // Silent periodic sync registration failure
                     });
                 } else {
-                    console.log('⚠️ Background Periodic Sync not supported, using fallback');
+                    // Silent fallback notification
                 }
             })
             .catch(error => {
-                console.error('❌ Service Worker registration failed:', error);
-                // Don't show error to user, just log it - app will work without service worker
-                console.log('📱 App will continue working without background sync');
+                // Silent service worker registration failure
             });
     } else {
-        console.log('⚠️ Service Workers not supported in this browser');
-        console.log('📱 App will continue working without background sync');
+        // Silent service worker not supported notification
     }
     
     // Check for episode parameter in URL and play if found
@@ -2457,4 +2447,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     `;
     document.head.appendChild(style);
+    
+    // Add global image error handler to prevent console errors
+    window.addEventListener('error', (e) => {
+        if (e.target && e.target.tagName === 'IMG') {
+            e.preventDefault();
+            e.stopPropagation();
+            // Silently handle image errors
+            return true;
+        }
+    }, true);
 });

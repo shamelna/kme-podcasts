@@ -4,9 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kaizen Podcasts - Admin Dashboard</title>
+    <meta name="description" content="Admin dashboard for Kaizen Podcasts Collection - Manage podcasts, analytics, and content">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Kaizen Podcasts - Admin Dashboard">
+    <meta property="og:description" content="Admin dashboard for Kaizen Podcasts Collection - Manage podcasts, analytics, and content">
+    <meta property="og:image" content="https://podcast.kaizenmadeeasy.com/Mascot.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="https://podcast.kaizenmadeeasy.com/admin.html">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:title" content="Kaizen Podcasts - Admin Dashboard">
+    <meta property="twitter:description" content="Admin dashboard for Kaizen Podcasts Collection - Manage podcasts, analytics, and content">
+    <meta property="twitter:image" content="https://podcast.kaizenmadeeasy.com/Mascot.png">
     
     <!-- Styles -->
     <link rel="stylesheet" href="css/styles.css">
@@ -247,6 +263,80 @@
             background: #f8fafc;
         }
         
+        .featured-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .featured-badge.yes {
+            background: #10b981;
+            color: white;
+        }
+        
+        .featured-badge.no {
+            background: #e5e7eb;
+            color: #6b7280;
+        }
+        
+        .episode-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .episode-action-btn {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+        
+        .episode-action-btn.feature {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .episode-action-btn.feature:hover {
+            background: #d97706;
+            transform: translateY(-1px);
+        }
+        
+        .episode-action-btn.unfeature {
+            background: #10b981;
+            color: white;
+        }
+        
+        .episode-action-btn.unfeature:hover {
+            background: #059669;
+            transform: translateY(-1px);
+        }
+        
+        .episode-action-btn.remove-episode {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .episode-action-btn.remove-episode:hover {
+            background: #dc2626;
+            transform: translateY(-1px);
+        }
+        
+        .episode-action-btn.remove-podcast {
+            background: #f97316;
+            color: white;
+        }
+        
+        .episode-action-btn.remove-podcast:hover {
+            background: #ea580c;
+            transform: translateY(-1px);
+        }
+        
         .episode-title {
             font-weight: 600;
             color: #12385b;
@@ -431,6 +521,185 @@
                 max-width: 200px;
             }
         }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px) scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .modal-header {
+            padding: 24px 24px 16px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: #12385b;
+            font-size: 1.5rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #6c757d;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: #f8f9fa;
+            color: #12385b;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #12385b;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #12385b;
+            box-shadow: 0 0 0 3px rgba(18, 56, 91, 0.1);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #12385b;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0f2d4a;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-1px);
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #12385b;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #loadingMessage {
+            text-align: center;
+            color: #12385b;
+            font-weight: 600;
+        }
+
+        #resultsContent {
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-line;
+            font-family: 'Courier New', monospace;
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
     </style>
 </head>
 <body>
@@ -527,6 +796,9 @@
                                 <th>Unique Listeners</th>
                                 <th>Last Played</th>
                                 <th>Avg Duration</th>
+                                <th>Featured</th>
+                                <th>Actions</th>
+                                <th>Remove</th>
                             </tr>
                         </thead>
                         <tbody id="episodeTableBody">
@@ -587,6 +859,75 @@
                         <span class="status-value" id="cacheSize">0 items</span>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Podcast Modal -->
+    <div id="addPodcastModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>➕ Add New Podcast</h2>
+                <button class="modal-close" onclick="closeModal('addPodcastModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="addPodcastForm">
+                    <div class="form-group">
+                        <label for="rssFeedUrl">RSS Feed URL</label>
+                        <input type="url" id="rssFeedUrl" placeholder="https://example.com/podcast/feed.xml" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="podcastWebsite">Podcast Website (Optional)</label>
+                        <input type="url" id="podcastWebsite" placeholder="https://example.com/podcast">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('addPodcastModal')">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Podcast</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="confirmTitle">Confirm Action</h2>
+                <button class="modal-close" onclick="closeModal('confirmModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage">Are you sure you want to proceed?</p>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" onclick="closeModal('confirmModal')">Cancel</button>
+                    <button class="btn btn-primary" id="confirmButton">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Modal -->
+    <div id="resultsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="resultsTitle">Operation Results</h2>
+                <button class="modal-close" onclick="closeModal('resultsModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="resultsContent"></div>
+                <div class="form-actions">
+                    <button class="btn btn-primary" onclick="closeModal('resultsModal')">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div id="loadingModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-body">
+                <div class="loading-spinner"></div>
+                <p id="loadingMessage">Processing...</p>
             </div>
         </div>
     </div>

@@ -32,6 +32,20 @@ class AutoUpdateService {
         this.getUpdateStats();
     }
 
+    schedulePeriodicUpdates() {
+        // Clear any existing interval
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+        }
+        
+        // Set new interval (default: 24 hours)
+        this.updateInterval = setInterval(() => {
+            this.performPeriodicUpdate();
+        }, this.updateFrequency);
+        
+        // Silent scheduling
+    }
+
     startPeriodicUpdates() {
         // Clear any existing interval
         if (this.updateInterval) {
@@ -41,10 +55,8 @@ class AutoUpdateService {
         // Check for updates every 24 hours (daily)
         this.updateInterval = setInterval(async () => {
             if (this.isOnline) {
-                console.log('🔄 Daily auto-update check starting...');
                 try {
                     await this.checkForNewEpisodes();
-                    console.log('✅ Daily auto-update completed');
                 } catch (error) {
                     console.error('❌ Daily auto-update failed:', error);
                 }
