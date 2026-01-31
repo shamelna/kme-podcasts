@@ -349,8 +349,4 @@ window.addEventListener('DOMContentLoaded', () => {
     
     // Start periodic updates for automatic episode refreshing
     autoUpdateService.startPeriodicUpdates();
-    
-    if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
-    }
 });
