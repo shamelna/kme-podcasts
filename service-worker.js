@@ -15,10 +15,8 @@ const CACHE_URLS = [
     '/',
     '/index.html',
     '/css/styles.css',
-    '/js/firebase-config.js',
-    '/js/app.js',
-    '/js/user-auth.js',
-    '/js/auto-update-service.js'
+    '/manifest.json',
+    '/Mascot.png'
 ];
 
 // Install event - cache resources

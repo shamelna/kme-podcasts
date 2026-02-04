@@ -595,24 +595,29 @@ class AdminDashboard {
     async manualSyncAllPodcasts() {
         if (!this.validateAdminPassword()) return;
         
-        if (!confirm('Are you sure you want to sync all podcasts?\n\nThis may take several minutes and will update all podcast feeds.')) {
-            return;
-        }
+        // Show a more user-friendly confirmation modal
+        const shouldContinue = await this.showSyncConfirmation();
+        if (!shouldContinue) return;
         
         try {
             this.showNotification('🔄 Starting podcast sync... This may take a few minutes.', 'info');
+            this.showSyncProgress(0, 'Initializing...');
             
             // Get all podcasts from Firestore
             const podcastsSnapshot = await this.db.collection('podcasts').where('isActive', '==', true).get();
             
             if (podcastsSnapshot.empty) {
                 this.showNotification('ℹ️ No active podcasts found to sync.', 'info');
+                this.hideSyncProgress();
                 return;
             }
             
+            const totalPodcasts = podcastsSnapshot.size;
+            let processedPodcasts = 0;
             let totalUpdated = 0;
             let totalNewEpisodes = 0;
             let errors = [];
+            let syncResults = []; // Track detailed results per podcast
             
             // Process each podcast
             for (const podcastDoc of podcastsSnapshot.docs) {
@@ -620,26 +625,47 @@ class AdminDashboard {
                 const podcastId = podcastDoc.id;
                 
                 try {
-                    this.showNotification(`🔄 Syncing "${podcast.title}"...`, 'info');
+                    processedPodcasts++;
+                    const progress = Math.round((processedPodcasts / totalPodcasts) * 100);
+                    this.showSyncProgress(progress, `Syncing "${podcast.title}"...`);
+                    this.showNotification(`🔄 Syncing "${podcast.title}"... (${processedPodcasts}/${totalPodcasts})`, 'info');
                     
-                    // Use CORS proxy for external RSS feeds
-                    const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-                    const fetchUrl = podcast.rssUrl.startsWith('http') ? 
-                        proxyUrl + podcast.rssUrl : 
-                        podcast.rssUrl;
+                    // Try multiple CORS proxies with fallback
+                    const proxies = [
+                        'https://api.allorigins.win/raw?url=',
+                        'https://corsproxy.io/?',
+                        'https://cors.bridged.cc/'
+                    ];
                     
-                    // Fetch RSS feed
-                    const response = await fetch(fetchUrl, {
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
+                    let fetchSuccess = false;
+                    let rssText = '';
+                    
+                    for (const proxy of proxies) {
+                        try {
+                            const fetchUrl = podcast.rssUrl.startsWith('http') ? 
+                                proxy + encodeURIComponent(podcast.rssUrl) : 
+                                podcast.rssUrl;
+                            
+                            const response = await fetch(fetchUrl, {
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                }
+                            });
+                            
+                            if (response.ok) {
+                                rssText = await response.text();
+                                fetchSuccess = true;
+                                break;
+                            }
+                        } catch (proxyError) {
+                            console.log(`Proxy ${proxy} failed, trying next...`);
+                            continue;
                         }
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     
-                    const rssText = await response.text();
+                    if (!fetchSuccess) {
+                        throw new Error('All CORS proxies failed');
+                    }
                     const parser = new DOMParser();
                     const xmlDoc = parser.parseFromString(rssText, 'text/xml');
                     
@@ -700,6 +726,22 @@ class AdminDashboard {
                         
                         await batch.commit();
                         totalNewEpisodes += newEpisodes.length;
+                        
+                        // Track successful sync with new episodes
+                        syncResults.push({
+                            podcast: podcast.title,
+                            status: 'success',
+                            newEpisodes: newEpisodes.length,
+                            totalEpisodes: existingEpisodesSnapshot.size + newEpisodes.length
+                        });
+                    } else {
+                        // Track successful sync with no new episodes
+                        syncResults.push({
+                            podcast: podcast.title,
+                            status: 'success',
+                            newEpisodes: 0,
+                            totalEpisodes: existingEpisodesSnapshot.size
+                        });
                     }
                     
                     // Update podcast metadata
@@ -712,15 +754,32 @@ class AdminDashboard {
                     
                 } catch (error) {
                     console.error(`Error syncing podcast "${podcast.title}":`, error);
+                    
+                    let errorMessage = error.message;
                     if (error.message.includes('CORS')) {
-                        errors.push(`${podcast.title}: CORS error - RSS feed blocks cross-origin requests`);
-                    } else {
-                        errors.push(`${podcast.title}: ${error.message}`);
+                        errorMessage = 'CORS error - RSS feed blocks cross-origin requests';
                     }
+                    
+                    errors.push(`${podcast.title}: ${errorMessage}`);
+                    
+                    // Track failed sync
+                    syncResults.push({
+                        podcast: podcast.title,
+                        status: 'error',
+                        error: errorMessage,
+                        newEpisodes: 0,
+                        totalEpisodes: 0
+                    });
                 }
             }
             
-            // Show final results
+            // Hide progress and show final summary
+            this.hideSyncProgress();
+            
+            // Show detailed sync results
+            this.showDetailedSyncResults(syncResults, totalNewEpisodes, errors.length);
+            
+            // Also show brief notification
             if (errors.length === 0) {
                 this.showNotification(
                     `✅ Successfully synced ${totalUpdated} podcasts and added ${totalNewEpisodes} new episodes!`, 
@@ -741,6 +800,7 @@ class AdminDashboard {
             
         } catch (error) {
             console.error('Error syncing podcasts:', error);
+            this.hideSyncProgress();
             this.showNotification('❌ Failed to sync podcasts. Please try again.', 'error');
         }
     }
@@ -1423,6 +1483,188 @@ class AdminDashboard {
 
     async refreshStats() {
         await this.loadDashboardData();
+    }
+
+    // Helper methods for better sync UX
+    async showSyncConfirmation() {
+        return new Promise((resolve) => {
+            const modal = document.createElement('div');
+            modal.className = 'sync-confirmation-modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h3>🔄 Sync All Podcasts</h3>
+                    <p>This will update all podcast feeds and may take several minutes.</p>
+                    <p>You'll see progress updates for each podcast as it syncs.</p>
+                    <div class="modal-buttons">
+                        <button class="btn btn-primary" id="confirm-sync">Continue Sync</button>
+                        <button class="btn btn-secondary" id="cancel-sync">Cancel</button>
+                    </div>
+                </div>
+            `;
+            
+            // Add modal styles
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+            `;
+            
+            document.body.appendChild(modal);
+            
+            document.getElementById('confirm-sync').onclick = () => {
+                document.body.removeChild(modal);
+                resolve(true);
+            };
+            
+            document.getElementById('cancel-sync').onclick = () => {
+                document.body.removeChild(modal);
+                resolve(false);
+            };
+        });
+    }
+
+    showSyncProgress(percentage, message) {
+        let progressContainer = document.getElementById('sync-progress-container');
+        
+        if (!progressContainer) {
+            progressContainer = document.createElement('div');
+            progressContainer.id = 'sync-progress-container';
+            progressContainer.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: white;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+                padding: 20px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 9999;
+                min-width: 300px;
+            `;
+            document.body.appendChild(progressContainer);
+        }
+        
+        progressContainer.innerHTML = `
+            <h4 style="margin: 0 0 10px 0; color: #333;">🔄 Syncing Podcasts</h4>
+            <div style="margin-bottom: 10px; font-size: 14px; color: #666;">${message}</div>
+            <div style="background: #f0f0f0; border-radius: 4px; height: 8px; overflow: hidden;">
+                <div style="background: #007bff; height: 100%; width: ${percentage}%; transition: width 0.3s ease;"></div>
+            </div>
+            <div style="margin-top: 5px; font-size: 12px; color: #888; text-align: center;">${percentage}%</div>
+        `;
+    }
+
+    hideSyncProgress() {
+        const progressContainer = document.getElementById('sync-progress-container');
+        if (progressContainer) {
+            document.body.removeChild(progressContainer);
+        }
+    }
+
+    showDetailedSyncResults(syncResults, totalNewEpisodes, errorCount) {
+        // Create detailed results modal
+        const modal = document.createElement('div');
+        modal.className = 'sync-results-modal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        `;
+
+        const successResults = syncResults.filter(r => r.status === 'success');
+        const errorResults = syncResults.filter(r => r.status === 'error');
+
+        let resultsHTML = `
+            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 600px; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,0.3);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0; color: #333;">📊 Sync Results</h2>
+                    <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+                </div>
+                
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; text-align: center;">
+                        <div>
+                            <div style="font-size: 24px; font-weight: bold; color: #28a745;">${successResults.length}</div>
+                            <div style="font-size: 12px; color: #666;">Successful</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 24px; font-weight: bold; color: #007bff;">${totalNewEpisodes}</div>
+                            <div style="font-size: 12px; color: #666;">New Episodes</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 24px; font-weight: bold; color: #dc3545;">${errorResults.length}</div>
+                            <div style="font-size: 12px; color: #666;">Failed</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px;">Podcast Details</h3>
+                    <div style="max-height: 300px; overflow-y: auto;">
+        `;
+
+        syncResults.forEach(result => {
+            if (result.status === 'success') {
+                resultsHTML += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 500; color: #333;">${result.podcast}</div>
+                            <div style="font-size: 12px; color: #666;">${result.totalEpisodes} total episodes</div>
+                        </div>
+                        <div style="text-align: right;">
+                            ${result.newEpisodes > 0 ? 
+                                `<div style="color: #28a745; font-weight: bold;">+${result.newEpisodes} new</div>` : 
+                                `<div style="color: #6c757d; font-size: 12px;">No new episodes</div>`
+                            }
+                        </div>
+                    </div>
+                `;
+            } else {
+                resultsHTML += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; background: #fff5f5;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 500; color: #333;">${result.podcast}</div>
+                            <div style="font-size: 12px; color: #dc3545;">${result.error}</div>
+                        </div>
+                        <div style="color: #dc3545; font-weight: bold;">Failed</div>
+                    </div>
+                `;
+            }
+        });
+
+        resultsHTML += `
+                    </div>
+                </div>
+                
+                <div style="text-align: center;">
+                    <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px;">Close</button>
+                </div>
+            </div>
+        `;
+
+        modal.innerHTML = resultsHTML;
+        document.body.appendChild(modal);
+
+        // Auto-hide after 30 seconds
+        setTimeout(() => {
+            if (document.body.contains(modal)) {
+                document.body.removeChild(modal);
+            }
+        }, 30000);
     }
 }
 
