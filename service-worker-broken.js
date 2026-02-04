@@ -154,9 +154,9 @@ async function performBackgroundSync() {
         // Debug: Check Firebase availability before starting
         console.log('🔍 Firebase check before sync:', typeof firebase !== 'undefined' ? 'Available' : 'Not available');
         
-        // Import Firebase config in service worker context
+        // Import Firebase config in service worker context - API KEY REMOVED FOR SECURITY
         const firebaseConfig = {
-            apiKey: "AIzaSyCFC1q7p6MSly1ua50n-XI3yO4NmFCUMj4",
+            apiKey: "YOUR_NEW_API_KEY_HERE", // Replace this immediately!
             authDomain: "kme-podcasts.firebaseapp.com",
             projectId: "kme-podcasts",
             storageBucket: "kme-podcasts.firebasestorage.app",

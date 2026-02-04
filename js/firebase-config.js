@@ -1,6 +1,7 @@
-// Firebase configuration
+// Firebase configuration - API KEY REMOVED FOR SECURITY
+// Replace with your new API key after regenerating from Google Cloud Console
 const firebaseConfig = {
-    apiKey: "AIzaSyCFC1q7p6MSly1ua50n-XI3yO4NmFCUMj4",
+    apiKey: "YOUR_NEW_API_KEY_HERE", // Replace this immediately!
     authDomain: "kme-podcasts.firebaseapp.com",
     projectId: "kme-podcasts",
     storageBucket: "kme-podcasts.firebasestorage.app",
