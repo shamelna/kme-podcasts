@@ -525,6 +525,36 @@
                         </button>
                     </div>
                 </div>
+                
+                <!-- Podcast List -->
+                <div class="table-container" style="margin-top: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3>📻 Active Podcasts</h3>
+                        <button class="admin-btn secondary" onclick="adminDashboard.loadPodcastList()" style="padding: 8px 15px; font-size: 0.9rem;">
+                            <span class="btn-icon">🔄</span> Refresh List
+                        </button>
+                        <button class="admin-btn secondary" onclick="adminDashboard.inspectDatabase()" style="padding: 8px 15px; font-size: 0.9rem;">
+                            <span class="btn-icon">🔍</span> Inspect Database
+                        </button>
+                        <button class="admin-btn secondary" onclick="adminDashboard.fixMissingRssUrls()" style="padding: 8px 15px; font-size: 0.9rem;">
+                            <span class="btn-icon">🔧</span> Fix RSS URLs
+                        </button>
+                    </div>
+                    <table id="podcastTable">
+                        <thead>
+                            <tr>
+                                <th>Podcast Title</th>
+                                <th>RSS Feed</th>
+                                <th>Episodes</th>
+                                <th>Last Updated</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="podcastTableBody">
+                            <!-- Podcasts will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <!-- Admin Management Section -->
