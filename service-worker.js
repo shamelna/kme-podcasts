@@ -1,6 +1,6 @@
 // Service Worker for Background Podcast Updates - FIXED VERSION
-const CACHE_NAME = 'podcast-app-v4';
-const CACHE_VERSION = '4.0.0';
+const CACHE_NAME = 'podcast-app-v5';
+const CACHE_VERSION = '5.0.0';
 
 // Import Firebase scripts at the top level (synchronous)
 importScripts('https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js');
@@ -105,6 +105,12 @@ self.addEventListener('fetch', (event) => {
     
     // Cache strategy for other requests
     if (request.method === 'GET') {
+        // Bypass cache for JavaScript files with version parameters
+        if (url.pathname.includes('.js') && (url.searchParams.has('v') || url.searchParams.has('t'))) {
+            event.respondWith(fetch(request));
+            return;
+        }
+        
         event.respondWith(
             caches.match(request)
                 .then(response => {
@@ -200,9 +206,9 @@ async function performBackgroundSync() {
                     
                     // Try multiple CORS proxies
                     const proxies = [
-                        `https://api.allorigins.win/get?url=${encodeURIComponent(podcast.feedUrl)}`,
+                        `https://podcast-rss-proxy.eng-a-redwan.workers.dev/?url=${encodeURIComponent(podcast.feedUrl)}`,
                         `https://corsproxy.io/?${encodeURIComponent(podcast.feedUrl)}`,
-                        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(podcast.feedUrl)}`
+                        `https://api.allorigins.win/get?url=${encodeURIComponent(podcast.feedUrl)}`
                     ];
                     
                     let data = null;

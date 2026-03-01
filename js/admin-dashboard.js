@@ -1,6 +1,7 @@
 // Admin Dashboard JavaScript
 class AdminDashboard {
     constructor() {
+        console.log('🚀 Admin Dashboard v=35 loading with comprehensive image fixes...');
         this.db = window.db || null;
         this.episodes = [];
         this.filteredEpisodes = [];
@@ -113,6 +114,9 @@ class AdminDashboard {
             this.updateStatCards();
             this.renderEpisodeTable();
             this.renderChart('visitors');
+            
+            // Load podcast list
+            await this.loadPodcastList();
             
             this.showLoading(false);
             
@@ -592,6 +596,54 @@ class AdminDashboard {
         }
     }
 
+    async unfeatureAllEpisodes() {
+        if (!this.validateAdminPassword()) return;
+        
+        try {
+            // Show confirmation dialog
+            const shouldContinue = confirm('⚠️ Are you sure you want to unfeature ALL episodes? This will remove the featured status from every episode in the database.');
+            if (!shouldContinue) return;
+            
+            this.showNotification('🚫 Unfeaturing all episodes...', 'info');
+            
+            // Get all featured episodes
+            const featuredSnapshot = await this.db.collection('episodes')
+                .where('featured', '==', true)
+                .get();
+            
+            if (featuredSnapshot.empty) {
+                this.showNotification('ℹ️ No featured episodes found to unfeature.', 'info');
+                return;
+            }
+            
+            // Batch update to remove featured status
+            const batch = this.db.batch();
+            featuredSnapshot.forEach(doc => {
+                batch.update(doc.ref, { 
+                    featured: false,
+                    featuredOrder: null 
+                });
+            });
+            
+            await batch.commit();
+            
+            // Update local episodes array
+            this.episodes.forEach(episode => {
+                episode.featured = false;
+                episode.featuredOrder = null;
+            });
+            
+            // Refresh the table
+            this.filterEpisodes();
+            
+            this.showNotification(`✅ Successfully unfeatured ${featuredSnapshot.size} episodes`, 'success');
+            
+        } catch (error) {
+            console.error('Error unfeaturing all episodes:', error);
+            this.showNotification('❌ Failed to unfeature episodes. Please try again.', 'error');
+        }
+    }
+
     async manualSyncAllPodcasts() {
         if (!this.validateAdminPassword()) return;
         
@@ -603,8 +655,8 @@ class AdminDashboard {
             this.showNotification('🔄 Starting podcast sync... This may take a few minutes.', 'info');
             this.showSyncProgress(0, 'Initializing...');
             
-            // Get all podcasts from Firestore
-            const podcastsSnapshot = await this.db.collection('podcasts').where('isActive', '==', true).get();
+            // Get all podcasts from Firestore (include both active and inactive)
+            const podcastsSnapshot = await this.db.collection('podcasts').get();
             
             if (podcastsSnapshot.empty) {
                 this.showNotification('ℹ️ No active podcasts found to sync.', 'info');
@@ -630,12 +682,31 @@ class AdminDashboard {
                     this.showSyncProgress(progress, `Syncing "${podcast.title}"...`);
                     this.showNotification(`🔄 Syncing "${podcast.title}"... (${processedPodcasts}/${totalPodcasts})`, 'info');
                     
+                    console.log(`📻 Processing podcast: "${podcast.title}"`);
+                    console.log(`🔗 RSS URL: ${podcast.rssUrl}`);
+                    console.log(`🆔 Podcast ID: ${podcastId}`);
+                    
+                    // Skip if RSS URL is missing or invalid
+                    if (!podcast.rssUrl || podcast.rssUrl === '-' || podcast.rssUrl.trim() === '') {
+                        console.log(`⚠️ Skipping "${podcast.title}" - No valid RSS URL found`);
+                        syncResults.push({
+                            podcast: podcast.title,
+                            status: 'skipped',
+                            error: 'No valid RSS URL',
+                            newEpisodes: 0,
+                            totalEpisodes: podcast.episodeCount || 0
+                        });
+                        continue;
+                    }
+                    
                     // Try multiple CORS proxies with fallback
                     const proxies = [
-                        'https://api.allorigins.win/raw?url=',
+                        'https://podcast-rss-proxy.eng-a-redwan.workers.dev/?url=',
                         'https://corsproxy.io/?',
-                        'https://cors.bridged.cc/'
+                        'https://api.allorigins.win/raw?url='
                     ];
+                    
+                    console.log('🆕 Using updated proxy list with Cloudflare Worker as primary:', proxies);
                     
                     let fetchSuccess = false;
                     let rssText = '';
@@ -646,19 +717,27 @@ class AdminDashboard {
                                 proxy + encodeURIComponent(podcast.rssUrl) : 
                                 podcast.rssUrl;
                             
+                            console.log(`🔄 Trying proxy: ${proxy} for URL: ${podcast.rssUrl}`);
+                            console.log(`📡 Fetch URL: ${fetchUrl}`);
+                            
                             const response = await fetch(fetchUrl, {
                                 headers: {
                                     'X-Requested-With': 'XMLHttpRequest'
                                 }
                             });
                             
+                            console.log(`📊 Response status: ${response.status} for proxy: ${proxy}`);
+                            
                             if (response.ok) {
                                 rssText = await response.text();
+                                console.log(`✅ Success with proxy: ${proxy}, RSS length: ${rssText.length}`);
                                 fetchSuccess = true;
                                 break;
+                            } else {
+                                console.log(`❌ Proxy ${proxy} returned status: ${response.status}`);
                             }
                         } catch (proxyError) {
-                            console.log(`Proxy ${proxy} failed, trying next...`);
+                            console.log(`❌ Proxy ${proxy} failed with error:`, proxyError);
                             continue;
                         }
                     }
@@ -666,18 +745,27 @@ class AdminDashboard {
                     if (!fetchSuccess) {
                         throw new Error('All CORS proxies failed');
                     }
+                    console.log(`🔍 Parsing RSS feed for "${podcast.title}"...`);
                     const parser = new DOMParser();
                     const xmlDoc = parser.parseFromString(rssText, 'text/xml');
                     
                     // Check for parsing errors
                     const parseError = xmlDoc.querySelector('parsererror');
                     if (parseError) {
+                        console.error(`❌ RSS parsing error for "${podcast.title}":`, parseError);
                         throw new Error('Invalid RSS feed format');
                     }
                     
+                    console.log(`✅ RSS parsed successfully for "${podcast.title}"`);
+                    
+                    // Extract podcast-level image
+                    const channel = xmlDoc.querySelector('channel');
+                    const podcastImageUrl = this.extractImage(channel) || podcast.imageUrl || '';
+                    console.log(`🖼️ Podcast image for "${podcast.title}": ${podcastImageUrl || 'None found'}`);
+                    
                     // Extract episodes
                     const items = xmlDoc.querySelectorAll('item');
-                    const newEpisodes = [];
+                    console.log(`📺 Found ${items.length} episodes in "${podcast.title}"`);
                     
                     // Get existing episodes for this podcast
                     const existingEpisodesSnapshot = await this.db.collection('episodes')
@@ -686,20 +774,31 @@ class AdminDashboard {
                     
                     const existingEpisodeTitles = new Set();
                     existingEpisodesSnapshot.forEach(doc => {
-                        existingEpisodeTitles.add(doc.data().title);
+                        const title = doc.data().title;
+                        existingEpisodeTitles.add(title);
                     });
                     
-                    // Process each episode
-                    items.forEach(item => {
-                        const episodeTitle = item.querySelector('title')?.textContent || '';
-                        const episodeDescription = item.querySelector('description')?.textContent || '';
-                        const pubDate = item.querySelector('pubDate')?.textContent || '';
-                        const episodeUrl = item.querySelector('enclosure')?.getAttribute('url') || '';
-                        const episodeImage = item.querySelector('itunes\\:image')?.getAttribute('href') || podcast.imageUrl || '';
+                    console.log(`📚 Found ${existingEpisodeTitles.size} existing episodes for "${podcast.title}"`);
+                    console.log('📋 Existing episode titles (first 10):', Array.from(existingEpisodeTitles).slice(0, 10));
+                    
+                    // Arrays for new episodes and episodes needing image updates
+                    const syncedEpisodes = [];
+                    const episodesToUpdate = [];
+                    
+                    for (const item of items) {
+                        const episodeTitle = item.querySelector('title')?.textContent?.trim() || '';
+                        const episodeDescription = item.querySelector('description')?.textContent?.trim() || '';
+                        const pubDate = item.querySelector('pubDate')?.textContent?.trim() || '';
+                        const enclosure = item.querySelector('enclosure');
+                        const episodeUrl = enclosure?.getAttribute('url') || '';
+                        const episodeImage = this.extractEpisodeImage(item) || podcastImageUrl;
                         
-                        // Only add if it's a new episode
-                        if (episodeTitle && pubDate && !existingEpisodeTitles.has(episodeTitle)) {
-                            newEpisodes.push({
+                        const normalizedTitle = episodeTitle.toLowerCase().trim();
+                        const normalizedExistingTitles = Array.from(existingEpisodeTitles).map(title => title.toLowerCase().trim());
+                        
+                        if (!existingEpisodeTitles.has(episodeTitle) && !normalizedExistingTitles.includes(normalizedTitle)) {
+                            console.log(`📺 Found new episode: "${episodeTitle}"`);
+                            syncedEpisodes.push({
                                 title: episodeTitle,
                                 description: episodeDescription,
                                 publishDate: new Date(pubDate).toISOString(),
@@ -713,44 +812,109 @@ class AdminDashboard {
                                 lastPlayed: null,
                                 avgDuration: 0
                             });
+                        } else {
+                            // Check if existing episode needs image update
+                            if (episodeTitle && pubDate && (existingEpisodeTitles.has(episodeTitle) || normalizedExistingTitles.includes(normalizedTitle))) {
+                                if (!episodeImage) {
+                                    console.log(`⚠️ Episode "${episodeTitle}" has no image available`);
+                                } else {
+                                    console.log(`🖼️ Found image for existing episode "${episodeTitle}": ${episodeImage}`);
+                                    // Add to episodes to update images
+                                    episodesToUpdate.push({
+                                        title: episodeTitle,
+                                        image: episodeImage,
+                                        podcastId: podcastId
+                                    });
+                                }
+                            }
+                            if (!episodeTitle || !pubDate) {
+                                console.log(`⚠️ Skipping episode due to missing data - Title: "${episodeTitle}", PubDate: "${pubDate}"`);
+                            } else {
+                                // Check if it's a whitespace or case sensitivity issue
+                                const existsInOriginalSet = existingEpisodeTitles.has(episodeTitle);
+                                const existsInNormalizedSet = normalizedExistingTitles.includes(normalizedTitle);
+                                
+                                if (existsInOriginalSet !== existsInNormalizedSet) {
+                                    console.log(`🔍 Title comparison issue:`);
+                                    console.log(`  RSS title: "${episodeTitle}" (length: ${episodeTitle.length})`);
+                                    console.log(`  DB original check: ${existsInOriginalSet}`);
+                                    console.log(`  DB normalized check: ${existsInNormalizedSet}`);
+                                    console.log(`  Normalized title: "${normalizedTitle}"`);
+                                }
+                                
+                                console.log(`⏭️ Skipping episode: "${episodeTitle}" (already exists or missing data)`);
+                            }
                         }
-                    });
+                    }
+                    
+                    console.log(`🆕 Found ${syncedEpisodes.length} new episodes to add for "${podcast.title}"`);
                     
                     // Add new episodes to Firestore
-                    if (newEpisodes.length > 0) {
+                    if (syncedEpisodes.length > 0) {
+                        console.log(`💾 Saving ${syncedEpisodes.length} new episodes to database...`);
                         const batch = this.db.batch();
-                        newEpisodes.forEach(episode => {
+                        syncedEpisodes.forEach(episode => {
                             const episodeRef = this.db.collection('episodes').doc();
                             batch.set(episodeRef, episode);
                         });
                         
                         await batch.commit();
-                        totalNewEpisodes += newEpisodes.length;
-                        
-                        // Track successful sync with new episodes
-                        syncResults.push({
-                            podcast: podcast.title,
-                            status: 'success',
-                            newEpisodes: newEpisodes.length,
-                            totalEpisodes: existingEpisodesSnapshot.size + newEpisodes.length
-                        });
+                        console.log(`✅ Successfully saved ${syncedEpisodes.length} episodes for "${podcast.title}"`);
+                        totalNewEpisodes += syncedEpisodes.length;
                     } else {
-                        // Track successful sync with no new episodes
-                        syncResults.push({
-                            podcast: podcast.title,
-                            status: 'success',
-                            newEpisodes: 0,
-                            totalEpisodes: existingEpisodesSnapshot.size
-                        });
+                        console.log(`ℹ️ No new episodes to add for "${podcast.title}"`);
                     }
                     
-                    // Update podcast metadata
-                    await this.db.collection('podcasts').doc(podcastId).update({
-                        lastUpdated: new Date().toISOString(),
-                        episodeCount: existingEpisodesSnapshot.size + newEpisodes.length
+                    // Update existing episodes with missing images
+                    if (episodesToUpdate.length > 0) {
+                        console.log(`🖼️ Updating ${episodesToUpdate.length} existing episodes with images...`);
+                        const imageUpdateBatch = this.db.batch();
+                        
+                        for (const episodeToUpdate of episodesToUpdate) {
+                            // Find the episode document by title and podcastId
+                            const episodeQuery = await this.db.collection('episodes')
+                                .where('title', '==', episodeToUpdate.title)
+                                .where('podcastId', '==', episodeToUpdate.podcastId)
+                                .limit(1)
+                                .get();
+                            
+                            if (!episodeQuery.empty) {
+                                const episodeDoc = episodeQuery.docs[0];
+                                imageUpdateBatch.update(episodeDoc.ref, {
+                                    image: episodeToUpdate.image
+                                });
+                                console.log(`📸 Updated image for: "${episodeToUpdate.title}"`);
+                            }
+                        }
+                        
+                        await imageUpdateBatch.commit();
+                        console.log(`✅ Successfully updated ${episodesToUpdate.length} episode images`);
+                    }
+                    
+                    // Track successful sync
+                    syncResults.push({
+                        podcast: podcast.title,
+                        status: 'success',
+                        newEpisodes: syncedEpisodes.length,
+                        totalEpisodes: existingEpisodesSnapshot.size + syncedEpisodes.length
                     });
                     
                     totalUpdated++;
+                    console.log(`✅ Successfully synced "${podcast.title}"`);
+                    
+                    // Update podcast metadata
+                    const podcastUpdateData = {
+                        lastUpdated: new Date().toISOString(),
+                        episodeCount: existingEpisodesSnapshot.size + syncedEpisodes.length
+                    };
+                    
+                    // Update podcast image if found
+                    if (podcastImageUrl && podcastImageUrl !== podcast.imageUrl) {
+                        podcastUpdateData.imageUrl = podcastImageUrl;
+                        console.log(`🖼️ Updated podcast image for "${podcast.title}"`);
+                    }
+                    
+                    await this.db.collection('podcasts').doc(podcastId).update(podcastUpdateData);
                     
                 } catch (error) {
                     console.error(`Error syncing podcast "${podcast.title}":`, error);
@@ -762,14 +926,18 @@ class AdminDashboard {
                     
                     errors.push(`${podcast.title}: ${errorMessage}`);
                     
-                    // Track failed sync
+                    // Track failed sync but continue with next podcast
                     syncResults.push({
                         podcast: podcast.title,
                         status: 'error',
                         error: errorMessage,
                         newEpisodes: 0,
-                        totalEpisodes: 0
+                        totalEpisodes: podcast.episodeCount || 0
                     });
+                    
+                    // Continue to next podcast instead of stopping
+                    totalUpdated++;
+                    console.log(`⚠️ Failed to sync "${podcast.title}" but continuing...`);
                 }
             }
             
@@ -1011,10 +1179,9 @@ class AdminDashboard {
             
             // Try multiple CORS proxy options
             const proxyOptions = [
-                'https://cors-anywhere.herokuapp.com/',
-                'https://api.allorigins.win/raw?url=',
+                'https://podcast-rss-proxy.eng-a-redwan.workers.dev/?url=',
                 'https://corsproxy.io/?',
-                'https://thingproxy.freeboard.io/fetch/'
+                'https://api.allorigins.win/raw?url='
             ];
             
             let rssText = null;
@@ -1039,18 +1206,17 @@ class AdminDashboard {
                         
                         let fetchUrl;
                         if (proxyUrl.includes('allorigins.win')) {
-                            fetchUrl = proxyUrl + encodeURIComponent(rssFeedUrl);
+                            fetchUrl = proxyUrl + encodeURIComponent(rssFeedUrl) + '&_t=' + Date.now();
                         } else if (proxyUrl.includes('corsproxy.io')) {
-                            fetchUrl = proxyUrl + rssFeedUrl;
-                        } else if (proxyUrl.includes('thingproxy')) {
-                            fetchUrl = proxyUrl + encodeURIComponent(rssFeedUrl);
+                            fetchUrl = proxyUrl + rssFeedUrl + '&_t=' + Date.now();
+                        } else if (proxyUrl.includes('podcast-rss-proxy')) {
+                            fetchUrl = proxyUrl + encodeURIComponent(rssFeedUrl) + '&_t=' + Date.now();
                         } else {
-                            fetchUrl = proxyUrl + rssFeedUrl;
+                            fetchUrl = proxyUrl + encodeURIComponent(rssFeedUrl);
                         }
                         
                         const response = await fetch(fetchUrl, {
                             headers: {
-                                'X-Requested-With': 'XMLHttpRequest',
                                 'Accept': 'application/rss+xml, application/xml, text/xml'
                             }
                         });
@@ -1093,8 +1259,7 @@ class AdminDashboard {
             const title = channel.querySelector('title')?.textContent || 'Unknown Podcast';
             const description = channel.querySelector('description')?.textContent || '';
             const websiteUrl = channel.querySelector('link')?.textContent || rssFeedUrl;
-            const imageUrl = channel.querySelector('image url')?.textContent || 
-                           channel.querySelector('itunes\\:image')?.getAttribute('href') || '';
+            const imageUrl = this.extractImage(channel) || '';
             
             // Extract episodes
             const items = xmlDoc.querySelectorAll('item');
@@ -1105,7 +1270,7 @@ class AdminDashboard {
                 const episodeDescription = item.querySelector('description')?.textContent || '';
                 const pubDate = item.querySelector('pubDate')?.textContent || '';
                 const episodeUrl = item.querySelector('enclosure')?.getAttribute('url') || '';
-                const episodeImage = item.querySelector('itunes\\:image')?.getAttribute('href') || imageUrl;
+                const episodeImage = this.extractEpisodeImage(item) || imageUrl;
                 
                 if (episodeTitle && pubDate) {
                     episodes.push({
@@ -1666,6 +1831,754 @@ class AdminDashboard {
             }
         }, 30000);
     }
+
+    // Load and display all podcasts (including inactive ones)
+    async loadAllPodcasts() {
+        try {
+            console.log('🔄 Loading ALL podcasts for admin dashboard...');
+            const podcastsSnapshot = await this.db.collection('podcasts').get();
+            const podcastTableBody = document.getElementById('podcastTableBody');
+            
+            if (!podcastTableBody) {
+                console.log('❌ Podcast table body not found');
+                return;
+            }
+            
+            console.log(`📊 Found ${podcastsSnapshot.size} total podcasts in database`);
+            
+            if (podcastsSnapshot.empty) {
+                podcastTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">No podcasts found</td></tr>';
+                return;
+            }
+            
+            podcastTableBody.innerHTML = ''; // Clear existing content
+            
+            for (const podcastDoc of podcastsSnapshot.docs) {
+                const podcast = podcastDoc.data();
+                const podcastId = podcastDoc.id;
+                const isActive = podcast.isActive !== false; // Default to true if not set
+                
+                console.log(`📻 Processing podcast for list: "${podcast.title}" (ID: ${podcastId}) - Active: ${isActive}`);
+                
+                // Get episode count for this podcast
+                let episodeCount = 0;
+                try {
+                    const episodesSnapshot = await this.db.collection('episodes')
+                        .where('podcastId', '==', podcastId)
+                        .get();
+                    episodeCount = episodesSnapshot.size;
+                    console.log(`📺 Found ${episodeCount} episodes for "${podcast.title}"`);
+                } catch (error) {
+                    console.error(`❌ Error getting episode count for "${podcast.title}":`, error);
+                    episodeCount = 0;
+                }
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${podcast.title || 'Untitled'}</strong> ${!isActive ? '<span style="color: red; font-size: 0.8rem;">[INACTIVE]</span>' : ''}</td>
+                    <td><a href="${podcast.rssUrl}" target="_blank" style="font-size: 0.9rem; color: #64748b;">${podcast.rssUrl || 'No RSS URL'}</a></td>
+                    <td>${episodeCount}</td>
+                    <td>${podcast.lastUpdated ? new Date(podcast.lastUpdated).toLocaleDateString() : 'Never'}</td>
+                    <td>
+                        <button class="admin-btn primary" onclick="adminDashboard.editRssUrl('${podcastId}')" style="padding: 5px 10px; font-size: 0.8rem;">
+                            📝 Edit RSS
+                        </button>
+                        <button class="admin-btn danger" onclick="adminDashboard.removePodcast('${podcastId}')" style="padding: 5px 10px; font-size: 0.8rem;">
+                            🗑️ Remove
+                        </button>
+                        ${!isActive ? `
+                        <button class="admin-btn primary" onclick="adminDashboard.activatePodcast('${podcastId}')" style="padding: 5px 10px; font-size: 0.8rem;">
+                            ✅ Activate
+                        </button>` : ''}
+                    </td>
+                `;
+                
+                podcastTableBody.appendChild(row);
+            }
+            
+            console.log(`✅ Podcast list updated with ${podcastsSnapshot.size} podcasts`);
+            
+        } catch (error) {
+            console.error('Error loading podcast list:', error);
+            const podcastTableBody = document.getElementById('podcastTableBody');
+            if (podcastTableBody) {
+                podcastTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: red;">Error loading podcasts</td></tr>';
+            }
+        }
+    }
+
+    // Edit RSS URL for a podcast
+    async editRssUrl(podcastId) {
+        if (!this.validateAdminPassword()) return;
+        
+        try {
+            // Get current podcast data
+            const podcastDoc = await this.db.collection('podcasts').doc(podcastId).get();
+            const podcast = podcastDoc.data();
+            
+            const newRssUrl = prompt(`Edit RSS URL for "${podcast.title}":`, podcast.rssUrl || '');
+            
+            if (newRssUrl === null) {
+                console.log('❌ User cancelled RSS URL edit');
+                return;
+            }
+            
+            if (newRssUrl.trim() === '') {
+                this.showNotification('❌ RSS URL cannot be empty', 'error');
+                return;
+            }
+            
+            await this.db.collection('podcasts').doc(podcastId).update({
+                rssUrl: newRssUrl.trim(),
+                isActive: true // Auto-activate when RSS URL is added
+            });
+            
+            this.showNotification(`✅ Updated RSS URL for "${podcast.title}" and activated podcast`, 'success');
+            
+            // Refresh the list
+            await this.loadAllPodcasts();
+            
+        } catch (error) {
+            console.error('Error editing RSS URL:', error);
+            this.showNotification('❌ Error editing RSS URL', 'error');
+        }
+    }
+
+    // Activate a podcast
+    async activatePodcast(podcastId) {
+        if (!this.validateAdminPassword()) return;
+        
+        try {
+            await this.db.collection('podcasts').doc(podcastId).update({
+                isActive: true
+            });
+            
+            this.showNotification('✅ Podcast activated successfully', 'success');
+            await this.loadAllPodcasts(); // Refresh the list
+            
+        } catch (error) {
+            console.error('Error activating podcast:', error);
+            this.showNotification('❌ Error activating podcast', 'error');
+        }
+    }
+
+    // Load and display podcast list
+    async loadPodcastList() {
+        try {
+            console.log('🔄 Loading podcast list for admin dashboard...');
+            const podcastsSnapshot = await this.db.collection('podcasts').where('isActive', '==', true).get();
+            const podcastTableBody = document.getElementById('podcastTableBody');
+            
+            if (!podcastTableBody) {
+                console.log('❌ Podcast table body not found');
+                return;
+            }
+            
+            console.log(`📊 Found ${podcastsSnapshot.size} active podcasts in database`);
+            
+            if (podcastsSnapshot.empty) {
+                podcastTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">No active podcasts found</td></tr>';
+                return;
+            }
+            
+            podcastTableBody.innerHTML = ''; // Clear existing content
+            
+            for (const podcastDoc of podcastsSnapshot.docs) {
+                const podcast = podcastDoc.data();
+                const podcastId = podcastDoc.id;
+                
+                console.log(`📻 Processing podcast for list: "${podcast.title}" (ID: ${podcastId})`);
+                
+                // Get episode count for this podcast
+                let episodeCount = 0;
+                try {
+                    const episodesSnapshot = await this.db.collection('episodes')
+                        .where('podcastId', '==', podcastId)
+                        .get();
+                    episodeCount = episodesSnapshot.size;
+                    console.log(`📺 Found ${episodeCount} episodes for "${podcast.title}"`);
+                } catch (error) {
+                    console.error(`❌ Error getting episode count for "${podcast.title}":`, error);
+                    episodeCount = 0;
+                }
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${podcast.title || 'Untitled'}</strong></td>
+                    <td><a href="${podcast.rssUrl}" target="_blank" style="font-size: 0.9rem; color: #64748b;">${podcast.rssUrl}</a></td>
+                    <td>${episodeCount}</td>
+                    <td>${podcast.lastUpdated ? new Date(podcast.lastUpdated).toLocaleDateString() : 'Never'}</td>
+                    <td>
+                        <button class="admin-btn danger" onclick="adminDashboard.removePodcast('${podcastId}', '${podcast.title}')" style="padding: 5px 10px; font-size: 0.8rem;">
+                            <span class="btn-icon">🗑️</span> Remove
+                        </button>
+                    </td>
+                `;
+                podcastTableBody.appendChild(row);
+            }
+            
+            console.log(`✅ Podcast list updated with ${podcastsSnapshot.size} podcasts`);
+            
+        } catch (error) {
+            console.error('Error loading podcast list:', error);
+            const podcastTableBody = document.getElementById('podcastTableBody');
+            if (podcastTableBody) {
+                podcastTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: red;">Error loading podcasts</td></tr>';
+            }
+        }
+    }
+
+    // Find and add missing podcasts from episodes
+    async findMissingPodcasts() {
+        if (!this.validateAdminPassword()) return;
+        
+        try {
+            console.log('🔍 Finding missing podcasts from episodes...');
+            
+            // Get all podcasts
+            const podcastsSnapshot = await this.db.collection('podcasts').get();
+            const existingPodcasts = new Map();
+            podcastsSnapshot.docs.forEach(doc => {
+                const podcast = doc.data();
+                existingPodcasts.set(podcast.title.toLowerCase().trim(), {
+                    title: podcast.title,
+                    id: doc.id,
+                    rssUrl: podcast.rssUrl,
+                    isActive: podcast.isActive
+                });
+            });
+            
+            // Get all episodes and extract unique podcast titles
+            const episodesSnapshot = await this.db.collection('episodes').get();
+            const podcastTitlesFromEpisodes = new Set();
+            const missingPodcasts = new Map();
+            const titleMismatches = new Map();
+            
+            episodesSnapshot.docs.forEach(doc => {
+                const episode = doc.data();
+                if (episode.podcastTitle) {
+                    const episodeTitle = episode.podcastTitle.toLowerCase().trim();
+                    podcastTitlesFromEpisodes.add(episode.podcastTitle);
+                    
+                    // Check if this podcast exists in database (case-insensitive)
+                    let foundMatch = false;
+                    for (const [dbTitle, dbInfo] of existingPodcasts) {
+                        // Check for exact match (case-insensitive)
+                        if (dbTitle === episodeTitle) {
+                            foundMatch = true;
+                            break;
+                        }
+                        // Check for close matches (remove common suffixes/prefixes)
+                        const cleanEpisodeTitle = episodeTitle.replace(/\s+(podcast|show|the)\s*$/gi, '').trim();
+                        const cleanDbTitle = dbTitle.replace(/\s+(podcast|show|the)\s*$/gi, '').trim();
+                        if (cleanEpisodeTitle === cleanDbTitle) {
+                            titleMismatches.set(episode.podcastTitle, dbInfo.title);
+                            foundMatch = true;
+                            break;
+                        }
+                    }
+                    
+                    // If no match found, it's truly missing
+                    if (!foundMatch) {
+                        if (!missingPodcasts.has(episode.podcastTitle)) {
+                            missingPodcasts.set(episode.podcastTitle, {
+                                firstEpisode: episode,
+                                episodeCount: 0
+                            });
+                        }
+                        missingPodcasts.get(episode.podcastTitle).episodeCount++;
+                    }
+                }
+            });
+            
+            console.log(`\n📊 MISSING PODCAST ANALYSIS:`);
+            console.log(`📻 Podcasts in database: ${existingPodcasts.size}`);
+            console.log(`📺 Unique podcast titles from episodes: ${podcastTitlesFromEpisodes.size}`);
+            console.log(`🚨 Truly missing podcasts: ${missingPodcasts.size}`);
+            console.log(`⚠️ Title mismatches: ${titleMismatches.size}`);
+            
+            // Show title mismatches first
+            if (titleMismatches.size > 0) {
+                console.log(`\n⚠️ TITLE MISMATCHES (episodes vs database):`);
+                titleMismatches.forEach((dbTitle, episodeTitle) => {
+                    console.log(`   Episode: "${episodeTitle}" ↔ Database: "${dbTitle}"`);
+                });
+            }
+            
+            if (missingPodcasts.size === 0) {
+                if (titleMismatches.size > 0) {
+                    this.showNotification(`⚠️ Found ${titleMismatches.size} title mismatches but no missing podcasts. Check console for details.`, 'warning');
+                } else {
+                    this.showNotification('✅ No missing podcasts found!', 'success');
+                }
+                return;
+            }
+            
+            console.log(`\n🚨 TRULY MISSING PODCASTS (need to be added to database):`);
+            missingPodcasts.forEach((data, title) => {
+                console.log(`   - "${title}" | Episodes: ${data.episodeCount} | First episode: "${data.firstEpisode.title}"`);
+            });
+            
+            // Create detailed message for confirmation dialog
+            let missingPodcastsList = '';
+            missingPodcasts.forEach((data, title) => {
+                missingPodcastsList += `• "${title}" (${data.episodeCount} episodes)\n`;
+            });
+            
+            // Ask for confirmation before adding
+            const confirmAdd = confirm(`Found ${missingPodcasts.size} truly missing podcasts (and ${titleMismatches.size} title mismatches).\n\nMissing podcasts to be added:\n${missingPodcastsList}\nDo you want to add these ${missingPodcasts.size} missing podcasts to the database?\n\nThese podcasts will be added as inactive and will need RSS URLs to sync.`);
+            
+            if (!confirmAdd) {
+                console.log('❌ User cancelled adding missing podcasts');
+                return;
+            }
+            
+            // Add missing podcasts to database
+            let addedCount = 0;
+            for (const [title, data] of missingPodcasts) {
+                try {
+                    const newPodcast = {
+                        title: title,
+                        rssUrl: '', // Will need to be set manually
+                        isActive: false, // Start as inactive
+                        lastUpdated: null,
+                        createdAt: new Date().toISOString()
+                    };
+                    
+                    const docRef = await this.db.collection('podcasts').add(newPodcast);
+                    console.log(`✅ Added podcast: "${title}" (ID: ${docRef.id})`);
+                    addedCount++;
+                    
+                } catch (error) {
+                    console.error(`❌ Error adding podcast "${title}":`, error);
+                }
+            }
+            
+            this.showNotification(`✅ Added ${addedCount} missing podcasts. Found ${titleMismatches.size} title mismatches. Check console for details.`, 'success');
+            
+            // Refresh the podcast list
+            await this.loadAllPodcasts();
+            
+        } catch (error) {
+            console.error('Error finding missing podcasts:', error);
+            this.showNotification('❌ Error finding missing podcasts', 'error');
+        }
+    }
+
+    // Comprehensive database audit to find all inconsistencies
+    async auditDatabase() {
+        if (!this.validateAdminPassword()) return;
+        
+        try {
+            console.log('🔍 Running comprehensive database audit...');
+            
+            // Get all podcasts
+            const podcastsSnapshot = await this.db.collection('podcasts').get();
+            const allPodcasts = podcastsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            // Get all episodes
+            const episodesSnapshot = await this.db.collection('episodes').get();
+            const allEpisodes = episodesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            console.log(`\n📊 DATABASE AUDIT RESULTS:`);
+            console.log(`📻 Total podcasts in database: ${allPodcasts.length}`);
+            console.log(`📺 Total episodes in database: ${allEpisodes.length}`);
+            
+            // Categorize podcasts
+            const activePodcasts = allPodcasts.filter(p => p.isActive !== false);
+            const inactivePodcasts = allPodcasts.filter(p => p.isActive === false);
+            const podcastsWithRss = allPodcasts.filter(p => p.rssUrl && p.rssUrl !== undefined);
+            const podcastsWithoutRss = allPodcasts.filter(p => !p.rssUrl || p.rssUrl === undefined);
+            
+            // Find podcasts with episodes vs without episodes
+            const podcastsWithEpisodes = new Set();
+            allEpisodes.forEach(ep => {
+                if (ep.podcastId) {
+                    podcastsWithEpisodes.add(ep.podcastId);
+                }
+            });
+            
+            const podcastsWithEpisodesList = allPodcasts.filter(p => podcastsWithEpisodes.has(p.id));
+            const podcastsWithoutEpisodesList = allPodcasts.filter(p => !podcastsWithEpisodes.has(p.id));
+            
+            console.log(`\n📈 PODCAST STATUS:`);
+            console.log(`✅ Active podcasts: ${activePodcasts.length}`);
+            console.log(`❌ Inactive podcasts: ${inactivePodcasts.length}`);
+            console.log(`🔗 With RSS URLs: ${podcastsWithRss.length}`);
+            console.log(`⚠️ Without RSS URLs: ${podcastsWithoutRss.length}`);
+            console.log(`📺 With episodes: ${podcastsWithEpisodesList.length}`);
+            console.log(`📭 Without episodes: ${podcastsWithoutEpisodesList.length}`);
+            
+            // Show inactive podcasts
+            if (inactivePodcasts.length > 0) {
+                console.log(`\n❌ INACTIVE PODCASTS (should appear in main app but don't):`);
+                inactivePodcasts.forEach(p => {
+                    const hasEpisodes = podcastsWithEpisodes.has(p.id);
+                    console.log(`   - "${p.title}" | Has RSS: ${!!p.rssUrl} | Has Episodes: ${hasEpisodes}`);
+                });
+            }
+            
+            // Show podcasts without episodes
+            if (podcastsWithoutEpisodesList.length > 0) {
+                console.log(`\n📭 PODCASTS WITHOUT EPISODES (won't appear in main app filter):`);
+                podcastsWithoutEpisodesList.forEach(p => {
+                    console.log(`   - "${p.title}" | RSS: ${p.rssUrl || 'MISSING'} | Active: ${p.isActive !== false}`);
+                });
+            }
+            
+            // Show podcasts without RSS
+            if (podcastsWithoutRss.length > 0) {
+                console.log(`\n⚠️ PODCASTS WITHOUT RSS URL (can't sync):`);
+                podcastsWithoutRss.forEach(p => {
+                    console.log(`   - "${p.title}" | ID: ${p.id}`);
+                });
+            }
+            
+            // Check for duplicate RSS URLs
+            const rssUrlMap = new Map();
+            podcastsWithRss.forEach(p => {
+                if (rssUrlMap.has(p.rssUrl)) {
+                    rssUrlMap.get(p.rssUrl).push(p);
+                } else {
+                    rssUrlMap.set(p.rssUrl, [p]);
+                }
+            });
+            
+            const duplicates = Array.from(rssUrlMap.entries()).filter(([url, podcasts]) => podcasts.length > 1);
+            if (duplicates.length > 0) {
+                console.log(`\n🔄 DUPLICATE RSS URLs:`);
+                duplicates.forEach(([url, podcasts]) => {
+                    console.log(`   URL: ${url}`);
+                    podcasts.forEach(p => console.log(`     - "${p.title}"`));
+                });
+            }
+            
+            // Show unique podcast titles from episodes (for main app filter)
+            const uniquePodcastTitlesFromEpisodes = new Set();
+            allEpisodes.forEach(ep => {
+                if (ep.podcastTitle) {
+                    uniquePodcastTitlesFromEpisodes.add(ep.podcastTitle);
+                }
+            });
+            
+            console.log(`\n📋 MAIN APP FILTER ANALYSIS:`);
+            console.log(`📺 Unique podcast titles from episodes: ${uniquePodcastTitlesFromEpisodes.size}`);
+            console.log(`📻 Total podcasts in database: ${allPodcasts.length}`);
+            console.log(`⚠️ Missing from main app: ${allPodcasts.length - uniquePodcastTitlesFromEpisodes.size}`);
+            
+            const missingFromMainApp = allPodcasts.filter(p => !uniquePodcastTitlesFromEpisodes.has(p.title));
+            if (missingFromMainApp.length > 0) {
+                console.log(`\n🚨 PODCASTS MISSING FROM MAIN APP FILTER:`);
+                missingFromMainApp.forEach(p => {
+                    const hasEpisodes = podcastsWithEpisodes.has(p.id);
+                    console.log(`   - "${p.title}" | Has Episodes: ${hasEpisodes} | Active: ${p.isActive !== false}`);
+                });
+            }
+            
+            this.showNotification(`🔍 Audit complete. Check console for detailed analysis.`, 'success');
+            
+        } catch (error) {
+            console.error('Error auditing database:', error);
+            this.showNotification('❌ Error auditing database', 'error');
+        }
+    }
+
+    // Force fix duplicate RSS URLs
+    async fixDuplicateRssUrls() {
+        if (!this.validateAdminPassword()) return;
+        
+        try {
+            console.log('🔧 Fixing duplicate RSS URLs...');
+            
+            // Get all podcasts
+            const podcastsSnapshot = await this.db.collection('podcasts').get();
+            let fixedCount = 0;
+            
+            for (const podcastDoc of podcastsSnapshot.docs) {
+                const podcast = podcastDoc.data();
+                const podcastId = podcastDoc.id;
+                const title = podcast.title.toLowerCase();
+                
+                let newRssUrl = '';
+                
+                // Fix specific duplicates with correct unique URLs
+                if (podcast.rssUrl === 'https://rss.buzzsprout.com/1715047.rss') {
+                    if (title.includes('gemba academy')) {
+                        newRssUrl = 'https://rss.buzzsprout.com/1319367.rss';
+                    } else if (title.includes('shingo principles')) {
+                        newRssUrl = 'https://rss.buzzsprout.com/2008963.rss';
+                    }
+                    // Keep Excellence Unlocked as is (1715047.rss)
+                } else if (podcast.rssUrl === 'https://rss.buzzsprout.com/2056326.rss') {
+                    if (title.includes('lean blog interviews')) {
+                        newRssUrl = 'https://rss.buzzsprout.com/1894955.rss';
+                    } else if (title.includes('lean solutions')) {
+                        newRssUrl = 'https://rss.buzzsprout.com/2249655.rss';
+                    } else if (title.includes('business problems solved')) {
+                        newRssUrl = 'https://rss.buzzsprout.com/2128784.rss';
+                    } else if (title.includes('scrum master toolbox')) {
+                        newRssUrl = 'https://rss.buzzsprout.com/1319367.rss';
+                    }
+                    // Keep Lean Made Simple as is (2056326.rss)
+                }
+                
+                if (newRssUrl) {
+                    await this.db.collection('podcasts').doc(podcastId).update({
+                        rssUrl: newRssUrl
+                    });
+                    fixedCount++;
+                    console.log(`✅ Fixed RSS URL for "${podcast.title}": ${newRssUrl}`);
+                }
+            }
+            
+            this.showNotification(`🔧 Fixed ${fixedCount} duplicate RSS URLs`, 'success');
+            console.log(`✅ RSS URL fixing complete. ${fixedCount} podcasts updated.`);
+            
+            // Refresh the podcast list to show updated URLs
+            await this.loadPodcastList();
+            
+        } catch (error) {
+            console.error('Error fixing RSS URLs:', error);
+            this.showNotification('❌ Error fixing RSS URLs', 'error');
+        }
+    }
+
+    // Fix podcasts with missing RSS URLs
+    async fixMissingRssUrls() {
+        if (!this.validateAdminPassword()) return;
+        
+        try {
+            console.log('🔧 Fixing podcasts with missing RSS URLs...');
+            
+            // Get all podcasts
+            const podcastsSnapshot = await this.db.collection('podcasts').get();
+            let fixedCount = 0;
+            
+            for (const podcastDoc of podcastsSnapshot.docs) {
+                const podcast = podcastDoc.data();
+                const podcastId = podcastDoc.id;
+                
+                // Check if RSS URL is missing or undefined
+                if (!podcast.rssUrl || podcast.rssUrl === undefined) {
+                    console.log(`🔍 Fixing RSS URL for: "${podcast.title}"`);
+                    
+                    // Try to extract RSS URL from title or use common patterns
+                    let rssUrl = '';
+                    const title = podcast.title.toLowerCase();
+                    
+                    // Common RSS URL patterns based on podcast titles
+                    if (title.includes('hbr')) {
+                        if (title.includes('ideacast')) {
+                            rssUrl = 'https://feeds.harvardbusiness.org/harvardbusiness/ideacast';
+                        } else if (title.includes('strategy')) {
+                            rssUrl = 'https://feeds.harvardbusiness.org/harvardbusiness/strategy';
+                        }
+                    } else if (title.includes('excellence unlocked')) {
+                        rssUrl = 'https://rss.buzzsprout.com/1715047.rss';
+                    } else if (title.includes('lean made simple')) {
+                        rssUrl = 'https://rss.buzzsprout.com/2056326.rss';
+                    } else if (title.includes('gemba academy')) {
+                        rssUrl = 'https://rss.buzzsprout.com/1319367.rss';
+                    } else if (title.includes('lean blog interviews')) {
+                        rssUrl = 'https://rss.buzzsprout.com/1894955.rss';
+                    } else if (title.includes('lean solutions')) {
+                        rssUrl = 'https://rss.buzzsprout.com/2249655.rss';
+                    } else if (title.includes('business problems solved')) {
+                        rssUrl = 'https://rss.buzzsprout.com/2128784.rss';
+                    } else if (title.includes('shingo principles')) {
+                        rssUrl = 'https://rss.buzzsprout.com/2008963.rss';
+                    } else if (title.includes('scrum master toolbox')) {
+                        rssUrl = 'https://rss.buzzsprout.com/1319367.rss';
+                    }
+                    
+                    if (rssUrl) {
+                        await this.db.collection('podcasts').doc(podcastId).update({
+                            rssUrl: rssUrl,
+                            isActive: true
+                        });
+                        fixedCount++;
+                        console.log(`✅ Fixed RSS URL for "${podcast.title}": ${rssUrl}`);
+                    }
+                }
+            }
+            
+            this.showNotification(`🔧 Fixed RSS URLs for ${fixedCount} podcasts`, 'success');
+            console.log(`✅ RSS URL fixing complete. ${fixedCount} podcasts updated.`);
+            
+        } catch (error) {
+            console.error('Error fixing RSS URLs:', error);
+            this.showNotification('❌ Error fixing RSS URLs', 'error');
+        }
+    }
+
+    // Database inspection function
+    async inspectDatabase() {
+        if (!this.validateAdminPassword()) return;
+        
+        try {
+            console.log('🔍 Inspecting database contents...');
+            
+            // Get all podcasts (including inactive ones)
+            const podcastsSnapshot = await this.db.collection('podcasts').get();
+            console.log(`📊 Total podcasts in database: ${podcastsSnapshot.size}`);
+            
+            let activeCount = 0;
+            let inactiveCount = 0;
+            
+            for (const podcastDoc of podcastsSnapshot.docs) {
+                const podcast = podcastDoc.data();
+                const isActive = podcast.isActive !== false; // Default to true if not set
+                
+                if (isActive) {
+                    activeCount++;
+                } else {
+                    inactiveCount++;
+                }
+                
+                console.log(`\n📻 Podcast: "${podcast.title}"`);
+                console.log(`   ID: ${podcastDoc.id}`);
+                console.log(`   RSS: ${podcast.rssUrl}`);
+                console.log(`   Active: ${isActive}`);
+                console.log(`   Last Updated: ${podcast.lastUpdated || 'Never'}`);
+            }
+            
+            console.log(`\n📈 Summary: ${activeCount} active, ${inactiveCount} inactive podcasts`);
+            
+            // Get all episodes
+            const episodesSnapshot = await this.db.collection('episodes').get();
+            console.log(`\n📺 Total episodes in database: ${episodesSnapshot.size}`);
+            
+            // Group episodes by podcast
+            const episodesByPodcast = {};
+            episodesSnapshot.docs.forEach(doc => {
+                const episode = doc.data();
+                const podcastId = episode.podcastId;
+                if (!episodesByPodcast[podcastId]) {
+                    episodesByPodcast[podcastId] = [];
+                }
+                episodesByPodcast[podcastId].push(episode.title);
+            });
+            
+            // Show episode counts per podcast
+            for (const [podcastId, episodes] of Object.entries(episodesByPodcast)) {
+                const podcast = podcastsSnapshot.docs.find(doc => doc.id === podcastId)?.data();
+                if (podcast) {
+                    console.log(`\n📻 "${podcast.title}" has ${episodes.length} episodes`);
+                    console.log(`   Episodes: ${episodes.slice(0, 5).join(', ')}${episodes.length > 5 ? '...' : ''}`);
+                }
+            }
+            
+        } catch (error) {
+            console.error('Error inspecting database:', error);
+        }
+    }
+
+    // Remove a podcast and all its episodes
+    async removePodcast(podcastId, podcastTitle) {
+        if (!this.validateAdminPassword()) return;
+        
+        const confirmMessage = `Are you sure you want to remove "${podcastTitle}"?\n\nThis will:\n• Delete the podcast from the database\n• Delete ALL episodes associated with this podcast\n• This action CANNOT be undone\n\nType "DELETE" to confirm:`;
+        
+        const confirmation = prompt(confirmMessage);
+        if (confirmation !== 'DELETE') {
+            this.showNotification('Podcast removal cancelled', 'info');
+            return;
+        }
+        
+        try {
+            this.showNotification(`🗑️ Removing podcast "${podcastTitle}"...`, 'info');
+            
+            // Delete all episodes for this podcast
+            const episodesSnapshot = await this.db.collection('episodes')
+                .where('podcastId', '==', podcastId)
+                .get();
+            
+            const batch = this.db.batch();
+            
+            // Delete episodes
+            episodesSnapshot.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            
+            // Delete the podcast
+            const podcastRef = this.db.collection('podcasts').doc(podcastId);
+            batch.delete(podcastRef);
+            
+            await batch.commit();
+            
+            this.showNotification(`✅ Successfully removed "${podcastTitle}" and ${episodesSnapshot.size} episodes`, 'success');
+            
+            // Reload the podcast list
+            await this.loadPodcastList();
+            
+            // Reload dashboard data to update stats
+            await this.loadDashboardData();
+            
+        } catch (error) {
+            console.error('Error removing podcast:', error);
+            this.showNotification(`❌ Failed to remove "${podcastTitle}": ${error.message}`, 'error');
+        }
+    }
+
+    // Extract podcast-level image using comprehensive selectors
+    extractImage(channel) {
+        const imageSelectors = [
+            'itunes:image',
+            'itunes:image href', 
+            'image url',
+            'image',
+            'media:thumbnail',
+            'logo',
+            'icon'
+        ];
+
+        for (const selector of imageSelectors) {
+            const result = this.getElementText(channel, selector);
+            if (result) {
+                return result;
+            }
+        }
+
+        return null;
+    }
+
+    // Extract episode image using comprehensive selectors (matching rss-parser.js)
+    extractEpisodeImage(item) {
+        const imageSelectors = [
+            'itunes:image',
+            'itunes:image href',
+            'media:thumbnail',
+            'image url',
+            'enclosure[type="image/jpeg"]'
+        ];
+
+        for (const selector of imageSelectors) {
+            const result = this.getElementText(item, selector);
+            if (result) {
+                return result;
+            }
+        }
+
+        return null;
+    }
+
+    // Helper method to extract text from XML elements (matching rss-parser.js)
+    getElementText(parent, selector) {
+        // Handle XML namespaces for iTunes elements
+        if (selector.includes(':')) {
+            const [prefix, tag] = selector.split(':');
+            const namespaceElements = parent.getElementsByTagName(tag);
+            for (let element of namespaceElements) {
+                if (element.tagName && element.tagName.includes(prefix + ':' + tag)) {
+                    return element.textContent || element.getAttribute('href') || element.getAttribute('url') || '';
+                }
+            }
+            return null;
+        }
+        
+        const element = parent.querySelector(selector);
+        return element ? (element.textContent || element.getAttribute('href') || element.getAttribute('url') || '').trim() : null;
+    }
 }
 
 // Global functions for HTML onclick handlers
@@ -1983,6 +2896,11 @@ window.clearDatabase = clearDatabase;
 window.exportData = exportData;
 window.forceUpdate = forceUpdate;
 window.testBackgroundSync = testBackgroundSync;
+window.unfeatureAllEpisodes = function() {
+    if (window.adminDashboard) {
+        window.adminDashboard.unfeatureAllEpisodes();
+    }
+};
 
 // Initialize dashboard when page loads
 document.addEventListener('DOMContentLoaded', () => {
