@@ -66,18 +66,18 @@ class AdminDashboard {
             form.innerHTML = `
                 <h3 style="margin-bottom: 1rem; color: #12385b;">🔐 Admin Login Required</h3>
                 <div style="margin-bottom: 1rem;">
-                    <input type="email" id="admin-email" placeholder="Admin Email" value="ahmed.a.redwan@gmail.com"
+                    <input type="email" id="admin-email" placeholder="Admin Email" value="info@kaizenmadeeasy.com"
                         style="width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
                     <input type="password" id="admin-password" placeholder="Firebase Password" 
                         style="width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
                 </div>
                 <div style="margin-bottom: 1rem; font-size: 0.875rem; color: #666;">
-                    Use your Firebase account credentials (ahmed.a.redwan@gmail.com or eng.a.redwan@gmail.com).
+                    Use your Firebase account credentials for admin access.
                 </div>
                 <div style="margin-bottom: 1rem; font-size: 0.75rem; color: #888;">
-                    Note: This uses Firebase Authentication, not the old localStorage password.
+                    Supported emails: info@kaizenmadeeasy.com, ahmed.a.redwan@gmail.com, eng.a.redwan@gmail.com
                 </div>
-                <button type="submit" style="width: 100%; padding: 0.75rem; background: #12385b; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                <button type="submit" id="admin-login-btn" style="width: 100%; padding: 0.75rem; background: #12385b; color: white; border: none; border-radius: 4px; cursor: pointer;">
                     Sign In
                 </button>
                 <button type="button" id="cancel-login" style="width: 100%; padding: 0.75rem; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 0.5rem;">
@@ -89,10 +89,15 @@ class AdminDashboard {
             document.body.appendChild(modal);
             
             // Handle form submission
-            form.addEventListener('submit', async (e) => {
+            const handleSubmit = async (e) => {
                 e.preventDefault();
+                console.log('🔐 Login form submitted');
+                
                 const email = document.getElementById('admin-email').value;
                 const password = document.getElementById('admin-password').value;
+                
+                console.log('📧 Email:', email);
+                console.log('🔑 Password provided:', password ? 'Yes' : 'No');
                 
                 if (!email || !password) {
                     alert('❌ Please enter both email and password');
@@ -100,7 +105,13 @@ class AdminDashboard {
                 }
                 
                 try {
-                    console.log('🔐 Attempting admin login...');
+                    console.log('🔐 Attempting Firebase sign in...');
+                    
+                    // Check if adminAuth is available
+                    if (!window.adminAuth) {
+                        throw new Error('AdminAuth not available');
+                    }
+                    
                     const user = await window.adminAuth.signInAdmin(email, password);
                     console.log('✅ Admin login successful:', user.email);
                     
@@ -121,7 +132,19 @@ class AdminDashboard {
                     alert('❌ Login failed: ' + error.message);
                     reject(error);
                 }
-            });
+            };
+            
+            form.addEventListener('submit', handleSubmit);
+            
+            // Also handle button click directly
+            const loginBtn = document.getElementById('admin-login-btn');
+            if (loginBtn) {
+                loginBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    console.log('🔐 Login button clicked');
+                    handleSubmit(e);
+                });
+            }
             
             // Handle cancel
             document.getElementById('cancel-login').addEventListener('click', () => {

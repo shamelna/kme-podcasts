@@ -42,7 +42,7 @@ googleProvider.addScope('profile');
 class AdminAuth {
     constructor(auth) {
         this.auth = auth;
-        this.adminEmail = 'ahmed.a.redwan@gmail.com'; // Updated to existing Firebase user
+        this.adminEmail = 'info@kaizenmadeeasy.com'; // Updated to newly added Firebase user
     }
 
     // Sign in admin with email/password
@@ -71,7 +71,11 @@ class AdminAuth {
     // Check if current user is admin
     isAdmin() {
         const user = this.auth.currentUser;
-        return user && (user.email === 'ahmed.a.redwan@gmail.com' || user.email === 'eng.a.redwan@gmail.com');
+        return user && (
+            user.email === 'info@kaizenmadeeasy.com' || 
+            user.email === 'ahmed.a.redwan@gmail.com' || 
+            user.email === 'eng.a.redwan@gmail.com'
+        );
     }
 
     // Get current admin user
