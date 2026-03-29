@@ -18,32 +18,100 @@ class AdminDashboard {
         this.init();
     }
 
-    // Check if user is authenticated with admin password
+    // Check if user is authenticated with Firebase Admin
     isAuthenticated() {
-        const adminPassword = localStorage.getItem('kme-admin-password');
-        return adminPassword === 'kaizen2024';
+        return window.adminAuth ? window.adminAuth.isAdmin() : false;
     }
 
-    // Validate admin password for sensitive operations
-    validateAdminPassword() {
-        if (!this.isAuthenticated()) {
-            const password = prompt('Enter admin password:');
-            if (password === 'kaizen2024') {
-                localStorage.setItem('kme-admin-password', 'kaizen2024');
-                return true;
-            } else {
-                alert('Incorrect admin password!');
-                return false;
-            }
+    // Validate admin authentication for sensitive operations
+    async validateAdminPassword() {
+        if (this.isAuthenticated()) {
+            return true;
         }
-        return true;
+        
+        // Show admin login modal
+        return this.showAdminLoginModal();
+    }
+
+    // Show admin login modal
+    showAdminLoginModal() {
+        return new Promise((resolve, reject) => {
+            // Create modal overlay
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.8); display: flex; align-items: center;
+                justify-content: center; z-index: 10000;
+            `;
+            
+            // Create login form
+            const form = document.createElement('div');
+            form.style.cssText = `
+                background: white; padding: 2rem; border-radius: 8px;
+                max-width: 400px; width: 90%;
+            `;
+            form.innerHTML = `
+                <h3 style="margin-bottom: 1rem; color: #12385b;">🔐 Admin Login Required</h3>
+                <input type="email" id="admin-email" placeholder="Admin Email" 
+                    style="width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                <input type="password" id="admin-password" placeholder="Admin Password" 
+                    style="width: 100%; padding: 0.5rem; margin-bottom: 1rem; border: 1px solid #ddd; border-radius: 4px;">
+                <button type="submit" style="width: 100%; padding: 0.75rem; background: #12385b; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Sign In
+                </button>
+                <button type="button" id="cancel-login" style="width: 100%; padding: 0.75rem; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 0.5rem;">
+                    Cancel
+                </button>
+            `;
+            
+            modal.appendChild(form);
+            document.body.appendChild(modal);
+            
+            // Handle form submission
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('admin-email').value;
+                const password = document.getElementById('admin-password').value;
+                
+                try {
+                    await window.adminAuth.signInAdmin(email, password);
+                    document.body.removeChild(modal);
+                    resolve(true);
+                } catch (error) {
+                    alert('❌ Invalid admin credentials: ' + error.message);
+                    reject(error);
+                }
+            });
+            
+            // Handle cancel
+            document.getElementById('cancel-login').addEventListener('click', () => {
+                document.body.removeChild(modal);
+                resolve(false);
+            });
+        });
     }
 
     async init() {
         try {
-            // Check if user is authenticated
-            if (!this.isAuthenticated()) {
-                this.redirectToLogin();
+            // Set up auth state monitoring
+            if (window.adminAuth) {
+                window.adminAuth.onAuthStateChanged((user) => {
+                    if (!user) {
+                        this.redirectToLogin();
+                        return;
+                    }
+                    
+                    if (!window.adminAuth.isAdmin()) {
+                        console.warn('⚠️ User is not admin, redirecting');
+                        this.redirectToLogin();
+                        return;
+                    }
+                    
+                    console.log('🔥 Admin authenticated via Firebase');
+                    this.loadDashboardData();
+                });
+            } else {
+                console.error('❌ AdminAuth not available');
                 return;
             }
 
@@ -54,9 +122,6 @@ class AdminDashboard {
                 return;
             }
 
-            console.log('🔥 Firebase initialized for admin dashboard');
-            await this.loadDashboardData();
-            
             // Update sync status periodically
             setInterval(() => this.updateSyncStatus(), 5000);
             
@@ -67,8 +132,8 @@ class AdminDashboard {
     }
 
     redirectToLogin() {
-        // Redirect to main app with admin mode prompt
-        window.location.href = 'index.html?admin=required';
+        // Redirect to main app with Firebase Auth required
+        window.location.href = 'index.html?admin=firebase-auth-required';
     }
 
     async updateSyncStatus() {
@@ -85,17 +150,6 @@ class AdminDashboard {
         if (cacheEl) {
             cacheEl.textContent = `${this.episodes.length} items`;
         }
-    }
-
-    isAuthenticated() {
-        // Check for admin password in localStorage or session
-        const adminPassword = localStorage.getItem('kme-admin-password');
-        return adminPassword === 'kaizen2024';
-    }
-
-    redirectToLogin() {
-        // Redirect to main app with admin mode prompt
-        window.location.href = 'index.html?admin=required';
     }
 
     async loadDashboardData() {

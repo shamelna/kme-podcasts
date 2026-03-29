@@ -1,11 +1,11 @@
 // RSS Feed Parser Service
 class RSSFeedParser {
     constructor() {
-        // Multiple proxy options for reliability (removed localhost proxy)
+        // Multiple proxy options for reliability (Cloudflare Worker primary)
         this.proxies = [
-            'https://corsproxy.io/?', // Most reliable
-            'https://api.allorigins.win/get?url=',
-            'https://api.codetabs.com/v1/proxy?quest='
+            'https://podcast-rss-proxy.eng-a-redwan.workers.dev/?url=',
+            'https://corsproxy.io/?', // Fallback
+            'https://api.allorigins.win/get?url=' // Fallback
         ];
         this.currentProxyIndex = 0;
     }
@@ -246,6 +246,7 @@ class RSSFeedParser {
         const imageSelectors = [
             'image url',
             'itunes:image',
+            'itunes:image href',
             'media:thumbnail',
             'logo'
         ];
@@ -263,6 +264,7 @@ class RSSFeedParser {
     extractEpisodeImage(item) {
         const imageSelectors = [
             'itunes:image',
+            'itunes:image href',
             'media:thumbnail',
             'image url',
             'enclosure[type="image/jpeg"]'

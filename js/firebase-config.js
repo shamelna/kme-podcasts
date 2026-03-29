@@ -1,26 +1,73 @@
-// Firebase configuration - API KEY REMOVED FOR SECURITY
-// Replace with your new API key after regenerating from Google Cloud Console
+// Firebase configuration - Use environment variables for security
 const firebaseConfig = {
-    apiKey: "YOUR_NEW_API_KEY_HERE", // Replace this immediately!
+    apiKey: process.env.FIREBASE_API_KEY || "YOUR_NEW_API_KEY_HERE", // Set via environment variable
     authDomain: "kme-podcasts.firebaseapp.com",
     projectId: "kme-podcasts",
     storageBucket: "kme-podcasts.firebasestorage.app",
-    messagingSenderId: "635239448486",
-    appId: "1:635239448486:web:57c7f8c39009e3bb4cd967",
-    measurementId: "G-NSEVF9C6G1"
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "635239448486",
+    appId: process.env.FIREBASE_APP_ID || "1:635239448486:web:57c7f8c39009e3bb4cd967",
+    measurementId: process.env.FIREBASE_MEASUREMENT_ID || "G-NSEVF9C6G1"
 };
 
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const auth = firebase.auth(); // Available but disabled for user functionality
+const auth = firebase.auth();
 
-// Configure Google Auth Provider (available but not used)
+// Configure Google Auth Provider
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 googleProvider.addScope('email');
 googleProvider.addScope('profile');
 
-// Auth is disabled - keeping only database functionality
+// Admin Authentication Functions
+class AdminAuth {
+    constructor(auth) {
+        this.auth = auth;
+        this.adminEmail = 'info@kaizenmadeeasy.com';
+    }
+
+    // Sign in admin with email/password
+    async signInAdmin(email, password) {
+        try {
+            const result = await this.auth.signInWithEmailAndPassword(email, password);
+            console.log('✅ Admin signed in successfully');
+            return result.user;
+        } catch (error) {
+            console.error('❌ Admin sign in failed:', error);
+            throw error;
+        }
+    }
+
+    // Sign out admin
+    async signOut() {
+        try {
+            await this.auth.signOut();
+            console.log('✅ Admin signed out');
+        } catch (error) {
+            console.error('❌ Sign out failed:', error);
+            throw error;
+        }
+    }
+
+    // Check if current user is admin
+    isAdmin() {
+        const user = this.auth.currentUser;
+        return user && user.email === this.adminEmail;
+    }
+
+    // Get current admin user
+    getCurrentAdmin() {
+        return this.auth.currentUser;
+    }
+
+    // Monitor auth state changes
+    onAuthStateChanged(callback) {
+        return this.auth.onAuthStateChanged(callback);
+    }
+}
+
+// Initialize admin auth
+const adminAuth = new AdminAuth(auth);
 
 // Firebase Firestore operations
 class PodcastDatabase {
@@ -420,6 +467,7 @@ if (typeof window !== 'undefined') {
     window.userDataManager = userDataManager;
     window.db = db;
     window.auth = auth;
+    window.adminAuth = adminAuth;
 }
 
 // Export for use in other files
@@ -430,6 +478,8 @@ if (typeof module !== 'undefined' && module.exports) {
         podcastDB,
         userDataManager,
         googleProvider,
-        firebase
+        firebase,
+        auth,
+        adminAuth
     };
 }
