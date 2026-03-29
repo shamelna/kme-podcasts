@@ -15,6 +15,12 @@ class AdminDashboard {
         };
         this.currentChart = null;
         this.currentChartType = 'visitors';
+        
+        // Emergency cost control - rate limiting
+        this.lastDataLoad = 0;
+        this.dataLoadCooldown = 30000; // 30 seconds between loads
+        this.analyticsLoaded = false; // Prevent multiple analytics loads
+        
         this.init();
     }
 
@@ -154,6 +160,15 @@ class AdminDashboard {
 
     async loadDashboardData() {
         try {
+            // Emergency cost control - rate limiting
+            const now = Date.now();
+            if (now - this.lastDataLoad < this.dataLoadCooldown) {
+                console.log(`⏰ Rate limiting active. Please wait ${Math.ceil((this.dataLoadCooldown - (now - this.lastDataLoad)) / 1000)} seconds.`);
+                this.showNotification('⏰ Please wait a moment before refreshing data...', 'warning');
+                return;
+            }
+            
+            this.lastDataLoad = now;
             this.showLoading(true);
             
             // Load all data in parallel
