@@ -198,10 +198,35 @@ class AdminDashboard {
                 ...doc.data()
             }));
 
-            // Get play statistics for each episode
+            // Skip expensive analytics loading by default
+            // Only load when specifically requested (e.g., analytics view)
+            console.log(`📊 Loaded ${episodes.length} episodes (analytics skipped for performance)`);
+
+            // Return episodes without play statistics for better performance
+            return episodes.map(episode => ({
+                ...episode,
+                playCount: 0, // Default to 0 to avoid expensive analytics queries
+                uniqueListeners: 0,
+                lastPlayed: null,
+                avgDuration: 0
+            }));
+
+        } catch (error) {
+            console.error('Error loading episodes:', error);
+            throw new Error(`Failed to load episodes: ${error.message}`);
+        }
+    }
+
+    // Separate method to load analytics data only when needed
+    async loadEpisodesWithAnalytics() {
+        try {
+            const episodes = await this.loadEpisodes();
+            
+            // Get play statistics for each episode (expensive operation)
             let playStats = {};
             try {
                 const playsSnapshot = await this.db.collection('analytics').doc('plays').collection('episodes')
+                    .limit(500) // Reduce from unlimited to 500
                     .get();
 
                 playsSnapshot.docs.forEach(doc => {
@@ -229,7 +254,6 @@ class AdminDashboard {
             } catch (error) {
                 if (error.code === 'permission-denied') {
                     console.warn('🔒 Firebase permissions error: Cannot access play statistics. Admin access required.');
-                    // Don't show error for play stats - just use zeros
                 } else {
                     console.warn('Play statistics not available, using zeros:', error);
                 }
@@ -245,8 +269,8 @@ class AdminDashboard {
             }));
 
         } catch (error) {
-            console.error('Error loading episodes:', error);
-            throw new Error(`Failed to load episodes: ${error.message}`);
+            console.error('Error loading episodes with analytics:', error);
+            throw new Error(`Failed to load episodes with analytics: ${error.message}`);
         }
     }
 
@@ -256,8 +280,29 @@ class AdminDashboard {
                 throw new Error('Firebase not initialized. Please check your configuration.');
             }
 
-            // Get real analytics data
-            const analyticsData = await this.getRealAnalyticsData();
+            // Skip expensive analytics loading by default for better performance
+            // Only load when user specifically requests analytics view
+            console.log('📊 Skipping analytics loading for performance - use loadFullStatistics() when needed');
+            
+            return this.getBasicStatistics();
+
+        } catch (error) {
+            console.error('Error loading statistics:', error);
+            throw new Error(`Failed to load statistics: ${error.message}`);
+        }
+    }
+
+    // Separate method to load full analytics data only when explicitly requested
+    async loadFullStatistics() {
+        try {
+            if (!this.db) {
+                throw new Error('Firebase not initialized. Please check your configuration.');
+            }
+
+            console.log('📊 Loading full analytics data (expensive operation)...');
+            
+            // Get real analytics data with reduced limits
+            const analyticsData = await this.getRealAnalyticsDataOptimized();
             
             if (analyticsData) {
                 return this.processAnalyticsData(analyticsData);
@@ -267,8 +312,8 @@ class AdminDashboard {
             return this.getBasicStatistics();
 
         } catch (error) {
-            console.error('Error loading statistics:', error);
-            throw new Error(`Failed to load statistics: ${error.message}`);
+            console.error('Error loading full statistics:', error);
+            throw new Error(`Failed to load full statistics: ${error.message}`);
         }
     }
 
@@ -302,7 +347,8 @@ class AdminDashboard {
         };
     }
 
-    async getRealAnalyticsData() {
+    // Optimized version with reduced data limits
+    async getRealAnalyticsDataOptimized() {
         try {
             // Check if Firebase is properly initialized
             if (!this.db || !firebase.apps.length) {
@@ -310,12 +356,12 @@ class AdminDashboard {
                 return null;
             }
 
-            // Try to get visitor stats - create collection if it doesn't exist
+            // Try to get visitor stats with reduced limit
             let visitorsSnapshot;
             try {
                 visitorsSnapshot = await this.db.collection('analytics').doc('visitors').collection('visits')
                     .orderBy('timestamp', 'desc')
-                    .limit(1000)
+                    .limit(100) // Reduced from 1000 to 100
                     .get();
             } catch (error) {
                 if (error.code === 'permission-denied') {
@@ -328,12 +374,12 @@ class AdminDashboard {
                 }
             }
 
-            // Try to get play stats - create collection if it doesn't exist
+            // Try to get play stats with reduced limit
             let playsSnapshot;
             try {
                 playsSnapshot = await this.db.collection('analytics').doc('plays').collection('episodes')
                     .orderBy('timestamp', 'desc')
-                    .limit(1000)
+                    .limit(100) // Reduced from 1000 to 100
                     .get();
             } catch (error) {
                 if (error.code === 'permission-denied') {
@@ -352,7 +398,7 @@ class AdminDashboard {
             };
 
         } catch (error) {
-            console.error('Error getting real analytics data:', error);
+            console.error('Error getting optimized analytics data:', error);
             if (error.code === 'permission-denied') {
                 this.showError('Firebase permissions error: Admin access required for analytics.');
             }
