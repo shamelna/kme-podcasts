@@ -66,13 +66,16 @@ class AdminDashboard {
             form.innerHTML = `
                 <h3 style="margin-bottom: 1rem; color: #12385b;">🔐 Admin Login Required</h3>
                 <div style="margin-bottom: 1rem;">
-                    <input type="email" id="admin-email" placeholder="Admin Email" value="info@kaizenmadeeasy.com"
+                    <input type="email" id="admin-email" placeholder="Admin Email" value="ahmed.a.redwan@gmail.com"
                         style="width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
-                    <input type="password" id="admin-password" placeholder="Admin Password" 
+                    <input type="password" id="admin-password" placeholder="Firebase Password" 
                         style="width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
                 </div>
                 <div style="margin-bottom: 1rem; font-size: 0.875rem; color: #666;">
-                    Use your Firebase admin credentials to access the dashboard.
+                    Use your Firebase account credentials (ahmed.a.redwan@gmail.com or eng.a.redwan@gmail.com).
+                </div>
+                <div style="margin-bottom: 1rem; font-size: 0.75rem; color: #888;">
+                    Note: This uses Firebase Authentication, not the old localStorage password.
                 </div>
                 <button type="submit" style="width: 100%; padding: 0.75rem; background: #12385b; color: white; border: none; border-radius: 4px; cursor: pointer;">
                     Sign In
