@@ -42,8 +42,15 @@ class AdminDashboard {
     // Show admin login modal
     showAdminLoginModal() {
         return new Promise((resolve, reject) => {
+            // Check if modal already exists
+            if (document.getElementById('admin-login-modal')) {
+                resolve(false);
+                return;
+            }
+
             // Create modal overlay
             const modal = document.createElement('div');
+            modal.id = 'admin-login-modal';
             modal.style.cssText = `
                 position: fixed; top: 0; left: 0; width: 100%; height: 100%;
                 background: rgba(0,0,0,0.8); display: flex; align-items: center;
@@ -58,10 +65,15 @@ class AdminDashboard {
             `;
             form.innerHTML = `
                 <h3 style="margin-bottom: 1rem; color: #12385b;">🔐 Admin Login Required</h3>
-                <input type="email" id="admin-email" placeholder="Admin Email" 
-                    style="width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
-                <input type="password" id="admin-password" placeholder="Admin Password" 
-                    style="width: 100%; padding: 0.5rem; margin-bottom: 1rem; border: 1px solid #ddd; border-radius: 4px;">
+                <div style="margin-bottom: 1rem;">
+                    <input type="email" id="admin-email" placeholder="Admin Email" value="info@kaizenmadeeasy.com"
+                        style="width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                    <input type="password" id="admin-password" placeholder="Admin Password" 
+                        style="width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div style="margin-bottom: 1rem; font-size: 0.875rem; color: #666;">
+                    Use your Firebase admin credentials to access the dashboard.
+                </div>
                 <button type="submit" style="width: 100%; padding: 0.75rem; background: #12385b; color: white; border: none; border-radius: 4px; cursor: pointer;">
                     Sign In
                 </button>
@@ -79,12 +91,31 @@ class AdminDashboard {
                 const email = document.getElementById('admin-email').value;
                 const password = document.getElementById('admin-password').value;
                 
+                if (!email || !password) {
+                    alert('❌ Please enter both email and password');
+                    return;
+                }
+                
                 try {
-                    await window.adminAuth.signInAdmin(email, password);
+                    console.log('🔐 Attempting admin login...');
+                    const user = await window.adminAuth.signInAdmin(email, password);
+                    console.log('✅ Admin login successful:', user.email);
+                    
+                    // Remove modal
                     document.body.removeChild(modal);
+                    
+                    // Show success message
+                    this.showNotification('✅ Admin login successful! Loading dashboard...', 'success');
+                    
+                    // Load dashboard data
+                    setTimeout(() => {
+                        this.loadDashboardData();
+                    }, 1000);
+                    
                     resolve(true);
                 } catch (error) {
-                    alert('❌ Invalid admin credentials: ' + error.message);
+                    console.error('❌ Admin login failed:', error);
+                    alert('❌ Login failed: ' + error.message);
                     reject(error);
                 }
             });
@@ -94,6 +125,16 @@ class AdminDashboard {
                 document.body.removeChild(modal);
                 resolve(false);
             });
+            
+            // Handle escape key
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    document.body.removeChild(modal);
+                    document.removeEventListener('keydown', handleEscape);
+                    resolve(false);
+                }
+            };
+            document.addEventListener('keydown', handleEscape);
         });
     }
 
@@ -115,14 +156,26 @@ class AdminDashboard {
                     console.log('✅ AdminAuth available, setting up auth state monitoring...');
                     window.adminAuth.onAuthStateChanged((user) => {
                         if (!user) {
-                            console.log('🔒 No user authenticated, redirecting to login');
-                            this.redirectToLogin();
+                            console.log('🔒 No user authenticated, showing login modal');
+                            // Show login modal directly instead of redirecting
+                            this.showAdminLoginModal().then((success) => {
+                                if (!success) {
+                                    console.log('❌ Admin login cancelled');
+                                    this.showError('Admin access cancelled. Please refresh to try again.');
+                                }
+                            });
                             return;
                         }
                         
                         if (!window.adminAuth.isAdmin()) {
-                            console.warn('⚠️ User is not admin, redirecting');
-                            this.redirectToLogin();
+                            console.warn('⚠️ User is not admin, showing login modal');
+                            // Show login modal for admin credentials
+                            this.showAdminLoginModal().then((success) => {
+                                if (!success) {
+                                    console.log('❌ Admin login failed');
+                                    this.showError('Invalid admin credentials. Please try again.');
+                                }
+                            });
                             return;
                         }
                         
