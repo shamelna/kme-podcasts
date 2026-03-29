@@ -288,25 +288,78 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
+    <!-- Fuse.js — lightweight full-text search (no server required) -->
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
+
     <!-- App Scripts -->
-    <script src="js/firebase-config.js?v=18"></script>
-    <script src="js/rss-parser.js?v=18"></script>
-    <script src="js/podcast-sync.js?v=18"></script>
-    <script src="js/seed-data.js?v=18"></script>
-    <script src="js/auto-update-service.js?v=18"></script>
-    <script src="js/app.js?v=18"></script>
-    
-    <!-- Service Worker Registration (for PWA) -->
+    <script src="js/firebase-config.js?v=19"></script>
+    <script src="js/rss-parser.js?v=19"></script>
+    <script src="js/podcast-sync.js?v=19"></script>
+    <script src="js/seed-data.js?v=19"></script>
+    <script src="js/auto-update-service.js?v=19"></script>
+    <script src="js/app.js?v=19"></script>
+
+    <!-- Service Worker Registration + PWA install prompt -->
     <script>
+        // ── Service Worker ────────────────────────────────────────────────────
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('service-worker.js')
-                .then(registration => {
+                .then(reg => {
                     console.log('✅ Service Worker registered');
+                    // Enable periodic background sync if supported
+                    if ('periodicSync' in reg) {
+                        reg.periodicSync.register('podcast-sync', { minInterval: 24 * 60 * 60 * 1000 })
+                            .then(() => console.log('⏰ Periodic background sync registered'))
+                            .catch(err => console.warn('Periodic sync not available:', err));
+                    }
                 })
-                .catch(error => {
-                    console.error('❌ Service Worker registration failed:', error);
-                });
+                .catch(err => console.error('❌ Service Worker registration failed:', err));
         }
+
+        // ── PWA Install Prompt ────────────────────────────────────────────────
+        let _deferredInstallPrompt = null;
+
+        window.addEventListener('beforeinstallprompt', e => {
+            e.preventDefault();
+            _deferredInstallPrompt = e;
+            // Show a subtle install banner after 3 seconds
+            setTimeout(() => showInstallBanner(), 3000);
+        });
+
+        function showInstallBanner() {
+            if (document.getElementById('pwa-install-banner')) return;
+            const banner = document.createElement('div');
+            banner.id = 'pwa-install-banner';
+            banner.innerHTML = `
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <img src="Mascot.png" style="width:36px;height:36px;border-radius:8px;" alt="">
+                    <div>
+                        <strong style="display:block;font-size:0.9rem;">Install Kaizen Podcasts</strong>
+                        <small style="color:#ccc;">Listen offline, anytime</small>
+                    </div>
+                </div>
+                <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+                    <button onclick="installPWA()" style="flex:1;padding:0.4rem 0.75rem;background:#f0a500;color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Install</button>
+                    <button onclick="document.getElementById('pwa-install-banner').remove()" style="flex:1;padding:0.4rem 0.75rem;background:transparent;color:#ccc;border:1px solid #555;border-radius:6px;cursor:pointer;">Not now</button>
+                </div>`;
+            banner.style.cssText = 'position:fixed;bottom:1.5rem;left:1rem;right:1rem;max-width:320px;margin:auto;background:#1a2a3a;color:#fff;padding:1rem;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.4);z-index:9999;font-family:inherit;';
+            document.body.appendChild(banner);
+        }
+
+        async function installPWA() {
+            if (!_deferredInstallPrompt) return;
+            _deferredInstallPrompt.prompt();
+            const { outcome } = await _deferredInstallPrompt.userChoice;
+            console.log('PWA install outcome:', outcome);
+            _deferredInstallPrompt = null;
+            const banner = document.getElementById('pwa-install-banner');
+            if (banner) banner.remove();
+        }
+
+        window.addEventListener('appinstalled', () => {
+            console.log('✅ PWA installed');
+            _deferredInstallPrompt = null;
+        });
     </script>
     
     <!-- Share Episode Modal -->

@@ -8,6 +8,8 @@ async function handleRequest(request) {
   const allowedOrigins = [
     'https://podcast.kaizenmadeeasy.com',
     'https://kaizenmadeeasy.com',
+    'https://kme-podcasts.web.app',          // Firebase default hosting domain
+    'https://kme-podcasts.firebaseapp.com',  // Firebase legacy hosting domain
     'http://localhost:8080',
     'http://127.0.0.1:8080'
   ]

@@ -12,6 +12,12 @@ class PodcastApp {
         this.audioPlayer = null;
         this.playlist = [];
         this.currentEpisodeIndex = 0;
+        // Fuse.js search index (built after episodes load)
+        this.fuseIndex = null;
+        // onSnapshot unsubscribe handles
+        this._unsubFeatured = null;
+        this._unsubLatest = null;
+        this._unsubAll = null;
         this.init();
     }
 
@@ -126,9 +132,6 @@ class PodcastApp {
             // Show loading indicator
             this.showLoadingIndicator();
             
-            // Check for admin authentication redirect
-            this.checkAdminRedirect();
-            
             // Track visitor for admin analytics
             this.trackVisitor();
             
@@ -148,32 +151,6 @@ class PodcastApp {
             console.error('Error initializing app:', error);
             this.showError('Failed to load application');
             this.hideLoadingIndicator();
-        }
-    }
-
-    checkAdminRedirect() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const adminRequired = urlParams.get('admin');
-        
-        if (adminRequired === 'required') {
-            // Prompt for admin password
-            const password = prompt('Enter admin password to access admin dashboard:');
-            if (password === 'kaizen2024') {
-                // Save password and redirect to admin dashboard
-                localStorage.setItem('kme-admin-password', 'kaizen2024');
-                window.location.href = 'admin.html';
-            } else if (password !== null) {
-                // Wrong password
-                alert('Incorrect admin password!');
-                // Clean URL to remove admin parameter
-                const cleanUrl = window.location.pathname;
-                window.history.replaceState({}, '', cleanUrl);
-            } else {
-                // User cancelled
-                // Clean URL to remove admin parameter
-                const cleanUrl = window.location.pathname;
-                window.history.replaceState({}, '', cleanUrl);
-            }
         }
     }
 
@@ -221,78 +198,93 @@ class PodcastApp {
 
     async loadData() {
         try {
-            // Check if podcastDB is available
+            // Wait for Firebase to be available
+            let attempts = 0;
+            while (!window.podcastDB && attempts < 10) {
+                console.log(`⏳ Waiting for Firebase initialization... (${attempts + 1}/10)`);
+                await new Promise(resolve => setTimeout(resolve, 500));
+                attempts++;
+            }
+            
             if (!window.podcastDB) {
-                console.error('❌ podcastDB not available');
+                console.error('❌ podcastDB not available after waiting');
                 this.updateLoadingText('⚠️ Error', 'Database not available. Please refresh the page.');
                 return;
             }
-            
-            // Update loading text
-            this.updateLoadingText('🎵 Loading Podcasts...', 'Fetching featured episodes...');
-            
-            // Load featured episodes
-            this.featuredEpisodes = await window.podcastDB.getFeaturedEpisodes();
-            // Limit to 5 episodes
-            this.featuredEpisodes = this.featuredEpisodes.slice(0, 5);
-            console.log('✅ Featured episodes loaded:', this.featuredEpisodes.length);
-            
-            // Update loading text
-            this.updateLoadingText('🎵 Loading Podcasts...', 'Fetching latest episodes...');
-            
-            // Load latest episodes
-            this.latestEpisodes = await window.podcastDB.getLatestEpisodes(5);
-            console.log('✅ Latest episodes loaded:', this.latestEpisodes.length);
-            
-            // Update loading text
-            this.updateLoadingText('🎵 Loading Podcasts...', 'Loading all episodes...');
-            
-            // Load all episodes for search and pagination
-            this.episodes = await window.podcastDB.getAllEpisodes();
-            console.log('✅ All episodes loaded:', this.episodes.length);
-            
-            // Extract podcast titles from episodes
-            this.allPodcasts.clear();
-            this.episodes.forEach(episode => {
-                if (episode.podcastTitle) {
-                    this.allPodcasts.add(episode.podcastTitle);
+
+            this.updateLoadingText('🎵 Loading Podcasts...', 'Connecting to live data...');
+
+            // ── Real-time: featured episodes ──────────────────────────────────
+            this._unsubFeatured = window.podcastDB.subscribeFeaturedEpisodes(episodes => {
+                this.featuredEpisodes = episodes.slice(0, 5);
+                console.log('🔴 Featured episodes updated:', this.featuredEpisodes.length);
+                this.displayFeaturedEpisodes();
+                setTimeout(() => this.addTooltipListeners(), 150);
+            }, 5);
+
+            // ── Real-time: latest episodes ────────────────────────────────────
+            this._unsubLatest = window.podcastDB.subscribeLatestEpisodes(episodes => {
+                this.latestEpisodes = episodes;
+                console.log('🔴 Latest episodes updated:', this.latestEpisodes.length);
+                this.displayLatestEpisodes();
+            }, 5);
+
+            // ── Real-time: all episodes (main grid) ───────────────────────────
+            this._unsubAll = window.podcastDB.subscribeAllEpisodes(episodes => {
+                const isFirstLoad = this.episodes.length === 0;
+                this.episodes = episodes;
+
+                // Rebuild podcast filter list
+                this.allPodcasts.clear();
+                episodes.forEach(ep => { if (ep.podcastTitle) this.allPodcasts.add(ep.podcastTitle); });
+
+                // Build / rebuild Fuse.js search index
+                this._buildFuseIndex();
+
+                if (isFirstLoad) {
+                    console.log('✅ All episodes loaded:', episodes.length);
+                    this.filteredEpisodes = [...this.episodes];
+                    const sortFilter = document.getElementById('sortFilter');
+                    if (sortFilter) sortFilter.value = 'date-desc';
+                    this.sortEpisodes();
+                    this.updateLoadingText('🎵 Almost Ready...', 'Finalizing setup...');
+                    this.displayEpisodes();
+                    this.populateFilters();
+                    this.checkForSharedEpisode();
+                    
+                    // Wait a moment for UI to render, then hide loading
+                    setTimeout(() => {
+                        this.hideLoadingIndicator();
+                        console.log('✅ Loading screen hidden - app ready');
+                    }, 1000);
+                } else {
+                    console.log('🔴 Episodes updated in real time:', episodes.length);
+                    // Re-apply current filter so grid reflects new data
+                    this.filterEpisodes();
+                    this.populateFilters();
                 }
             });
-            console.log('✅ Podcast titles extracted:', this.allPodcasts.size);
-            
-            // Initialize filtered episodes
-            this.filteredEpisodes = [...this.episodes];
-            
-            // Set default sorting to Latest First
-            const sortFilter = document.getElementById('sortFilter');
-            if (sortFilter) {
-                sortFilter.value = 'date-desc';
-            }
-            
-            // Apply default sorting
-            this.sortEpisodes();
-            
-            // Update loading text
-            this.updateLoadingText('🎵 Loading Podcasts...', 'Setting up interface...');
-            
-            // Display episodes
-            this.displayFeaturedEpisodes();
-            this.displayLatestEpisodes();
-            
-            // Update loading text
-            this.updateLoadingText('🎵 Almost Ready...', 'Finalizing setup...');
-            
-            // Display data
-            this.displayEpisodes();
-            this.populateFilters();
-            
-            // Check for shared episode in URL
-            this.checkForSharedEpisode();
-            
+
         } catch (error) {
             console.error('Failed to load podcast data:', error);
             this.showError('Failed to load podcast data');
         }
+    }
+
+    /** Build (or rebuild) the Fuse.js search index from this.episodes */
+    _buildFuseIndex() {
+        if (typeof Fuse === 'undefined') return;
+        this.fuseIndex = new Fuse(this.episodes, {
+            keys: [
+                { name: 'title',        weight: 0.5 },
+                { name: 'podcastTitle', weight: 0.3 },
+                { name: 'description',  weight: 0.2 }
+            ],
+            threshold: 0.35,       // 0 = exact, 1 = anything
+            includeScore: true,
+            ignoreLocation: true,
+            minMatchCharLength: 2
+        });
     }
 
     showLoading(elementId, message) {
@@ -361,27 +353,29 @@ class PodcastApp {
             console.log(`🔍 Search: "${searchTerm}" - ${this.episodes.length} total episodes`);
         }
 
-        this.filteredEpisodes = this.episodes.filter(episode => {
-            let matchesSearch = !searchTerm;
-            
-            if (searchTerm) {
-                // Split search term into individual words and require ALL to be present (AND logic)
-                const searchWords = searchTerm.trim().split(/\s+/).filter(word => word.length > 0);
-                
-                if (searchWords.length > 0) {
-                    // Check if ALL search words are found in any combination of the fields
-                    matchesSearch = searchWords.every(word => 
-                        episode.title.toLowerCase().includes(word) ||
-                        episode.description.toLowerCase().includes(word) ||
-                        episode.podcastTitle.toLowerCase().includes(word)
-                    );
-                }
+        // ── Fuse.js full-text search (preferred) or fallback keyword match ──
+        let searchPool = this.episodes;
+
+        if (searchTerm && searchTerm.length >= 2) {
+            if (this.fuseIndex) {
+                // Fuse returns [{item, score}]; extract the items
+                searchPool = this.fuseIndex.search(searchTerm).map(r => r.item);
+            } else {
+                // Fallback: simple AND-word match
+                const words = searchTerm.split(/\s+/).filter(w => w.length > 0);
+                searchPool = this.episodes.filter(ep =>
+                    words.every(w =>
+                        (ep.title || '').toLowerCase().includes(w) ||
+                        (ep.description || '').toLowerCase().includes(w) ||
+                        (ep.podcastTitle || '').toLowerCase().includes(w)
+                    )
+                );
             }
+        }
 
+        this.filteredEpisodes = searchPool.filter(episode => {
             const matchesPodcast = !podcastValue || episode.podcastTitle === podcastValue;
-            const matchesTopic = true; // Removed topic filter
-
-            return matchesSearch && matchesPodcast && matchesTopic;
+            return matchesPodcast;
         });
 
         // Only log filtered count when it changes significantly
@@ -2090,7 +2084,7 @@ playFromPlaylist(index) {
                         // Check if episode already exists
                         const exists = this.episodes.find(ep => ep.id === episode.id);
                         if (!exists) {
-                            episode.image = episode.image || 'https://example.com/mascot-placeholder.jpg'; // Add default image
+                            episode.image = episode.image || 'mascot with shadow.png'; // Add default image
                             episode.image = episode.image.replace('http://', 'https://'); // Ensure HTTPS
                             this.episodes.push({
                                 ...episode,
@@ -2288,7 +2282,9 @@ playFromPlaylist(index) {
         this.currentSharedEpisode = episode;
 
         // Update modal content with episode details
-        document.getElementById('shareEpisodeImage').src = episode.image || episode.thumbnail || 'https://kaizenmadeeasy.com/mascot%20with%20shadow.png';
+        const shareImg = document.getElementById('shareEpisodeImage');
+        shareImg.src = episode.image || episode.thumbnail || 'mascot with shadow.png';
+        shareImg.onerror = () => { shareImg.src = 'mascot with shadow.png'; };
         document.getElementById('shareEpisodeImage').alt = this.escapeHtml(episode.title);
         document.getElementById('shareEpisodeTitle').textContent = this.escapeHtml(episode.title);
         document.getElementById('shareEpisodePodcast').textContent = this.escapeHtml(episode.podcastTitle);
@@ -2683,18 +2679,6 @@ playFromPlaylist(index) {
             clearFilters.addEventListener('click', () => this.clearFilters());
         }
 
-        // Debug: Check current admin status with Ctrl+Shift+D
-        document.addEventListener('keydown', (e) => {
-            // Debug: Check current admin status with Ctrl+Shift+D
-            if (e.ctrlKey && e.shiftKey && e.key === 'D') {
-                e.preventDefault();
-                console.log('🔍 Current admin status:', {
-                    adminMode: this.adminMode,
-                    hasPassword: !!localStorage.getItem('kme-admin-password')
-                });
-                alert(`Admin Mode: ${this.adminMode ? 'ENABLED' : 'DISABLED'}\nPassword Stored: ${localStorage.getItem('kme-admin-password') ? 'YES' : 'NO'}`);
-            }
-        });
     }
 
     // Analytics Tracking Methods (Admin Only)
@@ -2877,10 +2861,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const style = document.createElement('style');
     style.textContent = `
         @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(1, 123, 181, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(1, 123, 181, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(1, 123, 181, 0); }
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
+        .pulse { animation: pulse 2s infinite; }
     `;
     document.head.appendChild(style);
 });

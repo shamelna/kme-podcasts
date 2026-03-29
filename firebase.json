@@ -1,0 +1,71 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "firestore.rules",
+      "firestore.indexes.json",
+      "firebase-rules.txt",
+      "create-firebase-index.js",
+      "service-worker-broken.js",
+      "test-worker.js",
+      ".env.example",
+      ".git",
+      ".gitattributes",
+      "node_modules",
+      "package.json",
+      "package-lock.json",
+      "cloudflare-worker",
+      "podcast-rss-proxy",
+      "CLOUDFLARE_SETUP.md",
+      "PROJECT_DOCS.md",
+      "APP_COMPREHENSIVE_ANALYSIS.md",
+      "**/*.exe",
+      "**/*.sh",
+      "**/*.bat",
+      "**/*.cmd",
+      "**/*.ps1"
+    ],
+    "rewrites": [
+      {
+        "source": "/service-worker.js",
+        "destination": "/service-worker.js"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "**/*.js",
+        "headers": [
+          { "key": "Content-Type", "value": "application/javascript" },
+          { "key": "Cache-Control", "value": "public, max-age=3600" }
+        ]
+      },
+      {
+        "source": "service-worker.js",
+        "headers": [
+          { "key": "Content-Type", "value": "application/javascript" },
+          { "key": "Cache-Control", "value": "no-cache" },
+          { "key": "Service-Worker-Allowed", "value": "/" }
+        ]
+      },
+      {
+        "source": "**/*.css",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
+      },
+      {
+        "source": "**",
+        "headers": [
+          { "key": "X-Frame-Options", "value": "SAMEORIGIN" }
+        ]
+      }
+    ]
+  }
+}

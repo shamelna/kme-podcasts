@@ -89,9 +89,6 @@ class AdminAuth {
     }
 }
 
-// Initialize admin auth
-const adminAuth = new AdminAuth(auth);
-
 // User Data Management for Firebase
 class UserDataManager {
     constructor(db, auth) {
@@ -265,15 +262,13 @@ class PodcastDatabase {
 
     async getFeaturedEpisodes(limit = 10) {
         try {
-            // Simple query without composite index requirement
+            // Uses composite index: featured ASC + featuredOrder ASC (firestore.indexes.json)
             const snapshot = await this.db.collection('episodes')
                 .where('featured', '==', true)
+                .orderBy('featuredOrder', 'asc')
                 .limit(limit)
                 .get();
-            
-            // Sort client-side to avoid index requirement
-            const episodes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            return episodes.sort((a, b) => (a.featuredOrder || 999) - (b.featuredOrder || 999));
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (error) {
             console.error('Error fetching featured episodes:', error);
             throw error;
@@ -296,23 +291,13 @@ class PodcastDatabase {
 
     async getEpisodesByPodcast(podcastId, limit = null) {
         try {
-            // First get all episodes for the podcast (without ordering to avoid index requirement)
-            const snapshot = await this.db.collection('episodes')
+            // Uses composite index: podcastId ASC + publishDate DESC (firestore.indexes.json)
+            let query = this.db.collection('episodes')
                 .where('podcastId', '==', podcastId)
-                .get();
-            
-            // Convert to array and sort manually
-            let episodes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            
-            // Sort by publishDate manually (newest first)
-            episodes.sort((a, b) => {
-                const dateA = a.publishDate ? a.publishDate.toDate ? a.publishDate.toDate() : new Date(a.publishDate) : new Date(0);
-                const dateB = b.publishDate ? b.publishDate.toDate ? b.publishDate.toDate() : new Date(b.publishDate) : new Date(0);
-                return dateB - dateA;
-            });
-            
-            // Apply limit only if specified
-            return limit ? episodes.slice(0, limit) : episodes;
+                .orderBy('publishDate', 'desc');
+            if (limit) query = query.limit(limit);
+            const snapshot = await query.get();
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (error) {
             console.error('Error fetching episodes by podcast:', error);
             throw error;
@@ -322,34 +307,31 @@ class PodcastDatabase {
     async searchEpisodes(searchTerm, filters = {}) {
         try {
             let query = this.db.collection('episodes');
-            
+
+            // Apply Firestore-level filters where possible
             if (filters.podcastId) {
-                query = query.where('podcastId', '==', filters.podcastId);
-            }
-            
-            if (filters.genre) {
-                query = query.where('genre', '==', filters.genre);
+                query = query.where('podcastId', '==', filters.podcastId)
+                             .orderBy('publishDate', 'desc');
+            } else {
+                query = query.orderBy('publishDate', 'desc');
             }
 
-            // Note: Firestore doesn't support full-text search natively
-            // This is a simplified implementation
-            const snapshot = await query
-                .orderBy('publishDate', 'desc')
-                .limit(1000) // Increased limit to show all episodes
-                .get();
-            
+            // Fetch all matching episodes (no arbitrary cap —
+            // the main app loads episodes once at startup and uses
+            // the Fuse.js index for all subsequent searches)
+            const snapshot = await query.get();
             const episodes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            
-            // Client-side filtering for search term
+
+            // Client-side keyword filter (fallback for admin panel usage)
             if (searchTerm) {
-                const lowerSearchTerm = searchTerm.toLowerCase();
-                return episodes.filter(episode => 
-                    episode.title.toLowerCase().includes(lowerSearchTerm) ||
-                    episode.description.toLowerCase().includes(lowerSearchTerm) ||
-                    episode.podcastTitle.toLowerCase().includes(lowerSearchTerm)
+                const lower = searchTerm.toLowerCase();
+                return episodes.filter(ep =>
+                    (ep.title || '').toLowerCase().includes(lower) ||
+                    (ep.description || '').toLowerCase().includes(lower) ||
+                    (ep.podcastTitle || '').toLowerCase().includes(lower)
                 );
             }
-            
+
             return episodes;
         } catch (error) {
             console.error('Error searching episodes:', error);
@@ -423,6 +405,65 @@ class PodcastDatabase {
         }
     }
 
+    // ── Real-time listeners (onSnapshot) ─────────────────────────────────────
+
+    /**
+     * Subscribe to featured episodes in real time.
+     * @param {function} callback  Called with the episodes array on every change.
+     * @param {number}   limit     Max episodes to return (default 5).
+     * @returns {function} Unsubscribe function — call it to stop listening.
+     */
+    subscribeFeaturedEpisodes(callback, limit = 5) {
+        return this.db.collection('episodes')
+            .where('featured', '==', true)
+            .orderBy('featuredOrder', 'asc')
+            .limit(limit)
+            .onSnapshot(
+                snapshot => {
+                    const episodes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    callback(episodes);
+                },
+                error => console.error('Featured episodes listener error:', error)
+            );
+    }
+
+    /**
+     * Subscribe to the latest episodes in real time.
+     * @param {function} callback  Called with the episodes array on every change.
+     * @param {number}   limit     Max episodes to return (default 5).
+     * @returns {function} Unsubscribe function.
+     */
+    subscribeLatestEpisodes(callback, limit = 5) {
+        return this.db.collection('episodes')
+            .orderBy('publishDate', 'desc')
+            .limit(limit)
+            .onSnapshot(
+                snapshot => {
+                    const episodes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    callback(episodes);
+                },
+                error => console.error('Latest episodes listener error:', error)
+            );
+    }
+
+    /**
+     * Subscribe to all episodes in real time (paginated).
+     * For the main episode grid — fires when any episode document changes.
+     * @param {function} callback  Called with full episode array on every change.
+     * @returns {function} Unsubscribe function.
+     */
+    subscribeAllEpisodes(callback) {
+        return this.db.collection('episodes')
+            .orderBy('publishDate', 'desc')
+            .onSnapshot(
+                snapshot => {
+                    const episodes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    callback(episodes);
+                },
+                error => console.error('All episodes listener error:', error)
+            );
+    }
+
     async deleteEpisode(episodeId) {
         try {
             await this.db.collection('episodes').doc(episodeId).delete();
@@ -447,28 +488,15 @@ class PodcastDatabase {
 
 // Initialize Database and User Manager
 const podcastDB = new PodcastDatabase(db);
-const userDataManager = new UserDataManager(db, auth);
+const userDataManager = new UserDataManager(db);
+const adminAuth = new AdminAuth(auth);
 
-// Make globally available for browser environment
-if (typeof window !== 'undefined') {
-    window.podcastDB = podcastDB;
-    window.userDataManager = userDataManager;
-    window.db = db;
-    window.auth = auth;
-    window.adminAuth = adminAuth;
-    window.firebase = firebase;
-}
+// Expose Firebase instances globally for other scripts
+window.db = db;
+window.auth = auth;
+window.podcastDB = podcastDB;
+window.userDataManager = userDataManager;
+window.adminAuth = adminAuth;
+window.firebase = firebase;
 
-// Export for use in other files
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        PodcastDatabase,
-        UserDataManager,
-        podcastDB,
-        userDataManager,
-        googleProvider,
-        firebase,
-        auth,
-        adminAuth
-    };
-}
+console.log('✅ Firebase instances initialized and exposed globally');

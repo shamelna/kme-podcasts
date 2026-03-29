@@ -30,6 +30,9 @@ class AutoUpdateService {
         
         // Display initial stats
         this.getUpdateStats();
+
+        // Wire up Firestore realtime listener
+        this.setupRealtimeListeners();
     }
 
     startPeriodicUpdates() {
@@ -280,21 +283,32 @@ class AutoUpdateService {
     }
 
     setupRealtimeListeners() {
-        if (window.firebase && window.firebase.database) {
-            const database = window.firebase.database();
-            
-            database.ref('episodes').limitToLast(1).on('child_added', (snapshot) => {
-                const newEpisode = snapshot.val();
-                this.notifyNewEpisodes(newEpisode.podcastTitle || 'Unknown', 1);
-            });
-            
-            database.ref('syncStatus').on('value', (snapshot) => {
-                const status = snapshot.val();
-                if (status === 'completed' && window.app && window.app.loadData) {
-                    window.app.loadData();
-                }
-            });
+        // Use Firestore onSnapshot (not Realtime Database — this project uses Firestore)
+        if (!window.db || !window.firebase || !window.firebase.apps.length) {
+            console.warn('⚠️ Firestore not available for realtime listeners');
+            return;
         }
+
+        // Listen for newly added episodes (most recent first, limit 1)
+        this._episodeListener = window.db.collection('episodes')
+            .orderBy('publishDate', 'desc')
+            .limit(1)
+            .onSnapshot(snapshot => {
+                snapshot.docChanges().forEach(change => {
+                    if (change.type === 'added') {
+                        const ep = change.doc.data();
+                        // Only notify if episode was added after service init
+                        const added = ep.publishDate
+                            ? (ep.publishDate.toDate ? ep.publishDate.toDate() : new Date(ep.publishDate))
+                            : null;
+                        if (added && added > new Date(this.lastSyncTime)) {
+                            this.notifyNewEpisodes(ep.podcastTitle || 'Unknown Podcast', 1);
+                        }
+                    }
+                });
+            }, err => console.warn('Episode listener error:', err));
+
+        console.log('👂 Firestore realtime episode listener active');
     }
 
     handleBackgroundUpdate(episodes) {
@@ -318,13 +332,20 @@ class AutoUpdateService {
         await this.checkForNewEpisodes();
     }
 
+    // Persist last sync time to localStorage
+    updateStats() {
+        const now = new Date();
+        this.lastSyncTime = now;
+        localStorage.setItem('lastSyncTime', now.getTime().toString());
+    }
+
     // Get update statistics
     getUpdateStats() {
         return {
             lastSyncTime: this.lastSyncTime,
             cacheSize: this.cache.size,
             isOnline: this.isOnline,
-            updateInterval: this.updateInterval ? '2 minutes' : 'stopped'
+            updateInterval: this.updateInterval ? '24 hours' : 'stopped'
         };
     }
 }

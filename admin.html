@@ -500,10 +500,11 @@
                     <button class="chart-btn active" onclick="showChart('visitors')">Visitors</button>
                     <button class="chart-btn" onclick="showChart('plays')">Plays</button>
                     <button class="chart-btn" onclick="showChart('episodes')">Top Episodes</button>
+                    <button class="chart-btn" onclick="exportCSV()" style="background:#1a6b3a;color:#fff;margin-left:1rem;">⬇ CSV</button>
                 </div>
             </div>
             <div id="chartContent">
-                <canvas id="analyticsChart" width="400" height="200"></canvas>
+                <canvas id="analyticsChart" width="700" height="280"></canvas>
             </div>
         </div>
 
@@ -569,6 +570,27 @@
                 </div>
             </div>
 
+            <!-- Podcast Directory Discovery Section -->
+            <div class="dashboard-section">
+                <h2>🔭 Discover New Podcasts</h2>
+                <p style="color:#666;margin-bottom:1rem;font-size:0.9rem;">Search the Podcast Index directory to find and add new podcasts directly.</p>
+                <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;">
+                    <input type="text" id="podcastSearchQuery" placeholder="Search podcasts (e.g. 'lean manufacturing', 'kaizen')..."
+                        style="flex:1;min-width:200px;padding:0.6rem 0.8rem;border:1px solid #ddd;border-radius:6px;font-size:0.9rem;">
+                    <button class="admin-btn primary" onclick="searchPodcastDirectory()" style="white-space:nowrap;">
+                        <span class="btn-icon">🔍</span> Search
+                    </button>
+                </div>
+                <div id="directorySearchResults" style="display:none;">
+                    <h4 style="margin-bottom:0.75rem;color:#333;">Search Results</h4>
+                    <div id="directoryResultsList" style="display:grid;gap:0.75rem;"></div>
+                </div>
+                <div id="directorySearchLoading" style="display:none;text-align:center;padding:2rem;color:#666;">
+                    🔍 Searching podcast directory...
+                </div>
+                <div id="directorySearchError" style="display:none;color:#c0392b;padding:1rem;background:#fdf0ef;border-radius:6px;"></div>
+            </div>
+
             <!-- Admin Management Section -->
             <div class="dashboard-section">
                 <h2>🔧 Admin Management</h2>
@@ -579,7 +601,10 @@
                             <span class="btn-icon">🗑️</span> Clear Database
                         </button>
                         <button class="admin-btn secondary" onclick="exportData()">
-                            <span class="btn-icon">📥</span> Export Data
+                            <span class="btn-icon">📥</span> Export JSON
+                        </button>
+                        <button class="admin-btn secondary" onclick="exportCSV()">
+                            <span class="btn-icon">📊</span> Export CSV
                         </button>
                     </div>
                     
@@ -722,9 +747,11 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
+    <!-- Chart.js for analytics trend charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
     <!-- App Scripts -->
-    <script src="js/firebase-config.js?v=18"></script>
-    <!-- Latest change to v=35 with comprehensive image extraction fixes -->
-    <script src="js/admin-dashboard.js?v=35&t=202603011941&r=0.555555555&bypass=true"></script>
+    <script src="js/firebase-config.js?v=19"></script>
+    <script src="js/admin-dashboard.js?v=36"></script>
 </body>
 </html>

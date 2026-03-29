@@ -66,16 +66,13 @@ class AdminDashboard {
             form.innerHTML = `
                 <h3 style="margin-bottom: 1rem; color: #12385b;">🔐 Admin Login Required</h3>
                 <div style="margin-bottom: 1rem;">
-                    <input type="email" id="admin-email" placeholder="Admin Email" value="info@kaizenmadeeasy.com"
+                    <input type="email" id="admin-email" placeholder="Admin Email"
                         style="width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
                     <input type="password" id="admin-password" placeholder="Firebase Password" 
                         style="width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
                 </div>
                 <div style="margin-bottom: 1rem; font-size: 0.875rem; color: #666;">
                     Use your Firebase account credentials for admin access.
-                </div>
-                <div style="margin-bottom: 1rem; font-size: 0.75rem; color: #888;">
-                    Supported emails: info@kaizenmadeeasy.com, ahmed.a.redwan@gmail.com, eng.a.redwan@gmail.com
                 </div>
                 <button type="submit" id="admin-login-btn" style="width: 100%; padding: 0.75rem; background: #12385b; color: white; border: none; border-radius: 4px; cursor: pointer;">
                     Sign In
@@ -1648,25 +1645,94 @@ class AdminDashboard {
 
     renderChart(type) {
         const canvas = document.getElementById('analyticsChart');
-        const ctx = canvas.getContext('2d');
-        
-        // Clear previous chart
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Use real analytics data
-        this.drawRealChart(ctx, type);
+        if (!canvas) return;
+
+        // Destroy existing Chart.js instance if present
+        if (this.currentChart && this.currentChart.destroy) {
+            this.currentChart.destroy();
+            this.currentChart = null;
+        }
+
+        // If Chart.js is available, use it; otherwise fall back to canvas drawing
+        if (typeof Chart !== 'undefined') {
+            this._renderChartJS(canvas, type);
+        } else {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            this.drawRealChart(ctx, type);
+        }
+    }
+
+    _renderChartJS(canvas, type) {
+        let data = [];
+        let label = '';
+        let color = '';
+
+        switch (type) {
+            case 'visitors':
+                data  = this.getMonthlyData(this.stats.visitors.monthly);
+                label = 'Monthly Visitors';
+                color = '#3b82f6';
+                break;
+            case 'plays':
+                data  = this.getMonthlyData(this.stats.plays.monthly);
+                label = 'Monthly Plays';
+                color = '#10b981';
+                break;
+            case 'episodes':
+                data  = this.getEpisodeGrowthData();
+                label = 'Top Episodes (plays)';
+                color = '#f59e0b';
+                break;
+        }
+
+        const labels = data.map(d => d.label);
+        const values = data.map(d => d.value);
+
+        this.currentChart = new Chart(canvas, {
+            type: type === 'episodes' ? 'bar' : 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label,
+                    data: values,
+                    backgroundColor: color + '33',
+                    borderColor: color,
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    pointBackgroundColor: color,
+                    fill: true,
+                    tension: 0.35
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: true, position: 'top' },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { precision: 0 },
+                        grid: { color: '#e1e8ed' }
+                    },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
     }
 
     drawRealChart(ctx, type) {
         const width = ctx.canvas.width;
         const height = ctx.canvas.height;
         const padding = 40;
-        
+
         // Get real data from stats
         let data = [];
         let color = '';
         let title = '';
-        
+
         switch(type) {
             case 'visitors':
                 data = this.getMonthlyData(this.stats.visitors.monthly);
@@ -1679,22 +1745,20 @@ class AdminDashboard {
                 title = 'Plays';
                 break;
             case 'episodes':
-                // Show episode count over time (last 6 months)
                 data = this.getEpisodeGrowthData();
                 color = '#f59e0b';
                 title = 'Episodes';
                 break;
         }
-        
+
         if (data.length === 0) {
-            // Show no data message
             ctx.fillStyle = '#64748b';
             ctx.font = '16px sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText('No data available', width / 2, height / 2);
             return;
         }
-        
+
         // Draw axes
         ctx.strokeStyle = '#e1e8ed';
         ctx.lineWidth = 1;
@@ -1703,19 +1767,19 @@ class AdminDashboard {
         ctx.lineTo(padding, height - padding);
         ctx.lineTo(width - padding, height - padding);
         ctx.stroke();
-        
+
         // Draw data
         const maxValue = Math.max(...data.map(d => d.value));
         const chartWidth = width - (padding * 2);
         const chartHeight = height - (padding * 2);
         const barWidth = chartWidth / data.length * 0.6;
         const spacing = chartWidth / data.length;
-        
+
         data.forEach((item, index) => {
             const barHeight = (item.value / maxValue) * chartHeight;
             const x = padding + (index * spacing) + (spacing - barWidth) / 2;
             const y = height - padding - barHeight;
-            
+
             // Draw bar
             ctx.fillStyle = color;
             ctx.fillRect(x, y, barWidth, barHeight);
@@ -3094,12 +3158,181 @@ async function testBackgroundSync() {
     }
 }
 
+// ── CSV Export ────────────────────────────────────────────────────────────────
+async function exportCSV() {
+    try {
+        const episodes = await window.adminDashboard.loadEpisodes();
+        if (!episodes || episodes.length === 0) {
+            alert('No episodes to export.');
+            return;
+        }
+
+        const headers = ['Title', 'Podcast', 'Publish Date', 'Audio URL', 'Featured', 'Play Count', 'Description'];
+
+        const escape = val => {
+            const s = String(val == null ? '' : val).replace(/"/g, '""');
+            return `"${s}"`;
+        };
+
+        const rows = episodes.map(ep => {
+            const date = ep.publishDate
+                ? (ep.publishDate.toDate ? ep.publishDate.toDate() : new Date(ep.publishDate)).toISOString().split('T')[0]
+                : '';
+            return [
+                escape(ep.title || ''),
+                escape(ep.podcastTitle || ''),
+                escape(date),
+                escape(ep.audioUrl || ''),
+                escape(ep.featured ? 'Yes' : 'No'),
+                escape(ep.playCount || 0),
+                escape((ep.description || '').replace(/<[^>]+>/g, '').substring(0, 300))
+            ].join(',');
+        });
+
+        const csv = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = `kme-episodes-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        window.adminDashboard.showNotification(`✅ Exported ${episodes.length} episodes to CSV`, 'success');
+    } catch (error) {
+        console.error('CSV export failed:', error);
+        alert('CSV export failed: ' + error.message);
+    }
+}
+
+// ── Podcast Index Directory Search ────────────────────────────────────────────
+// Uses the open Podcast Index API (free, no key required for basic search)
+async function searchPodcastDirectory() {
+    const query = (document.getElementById('podcastSearchQuery')?.value || '').trim();
+    if (!query) { alert('Please enter a search term.'); return; }
+
+    const resultsDiv  = document.getElementById('directorySearchResults');
+    const resultsList = document.getElementById('directoryResultsList');
+    const loadingDiv  = document.getElementById('directorySearchLoading');
+    const errorDiv    = document.getElementById('directorySearchError');
+
+    // Show loading
+    if (resultsDiv)  resultsDiv.style.display  = 'none';
+    if (errorDiv)    errorDiv.style.display    = 'none';
+    if (loadingDiv)  loadingDiv.style.display  = 'block';
+
+    try {
+        // Podcast Index API — https://podcastindex.org/
+        // Using the CORS-enabled search endpoint (no auth required for basic search)
+        const encoded  = encodeURIComponent(query);
+        const proxyUrl = `https://podcast-rss-proxy.eng-a-redwan.workers.dev/?url=${encodeURIComponent(`https://api.podcastindex.org/api/1.0/search/byterm?q=${encoded}&max=10&pretty`)}`;
+
+        // Fallback: use iTunes Search API (always CORS-friendly, no auth)
+        const itunesUrl = `https://itunes.apple.com/search?term=${encoded}&media=podcast&entity=podcast&limit=12&country=us`;
+
+        let podcasts = [];
+        let source = 'iTunes';
+
+        try {
+            const resp = await fetch(itunesUrl);
+            if (resp.ok) {
+                const json = await resp.json();
+                podcasts = (json.results || []).map(p => ({
+                    title:       p.collectionName,
+                    author:      p.artistName,
+                    image:       p.artworkUrl600 || p.artworkUrl100,
+                    feedUrl:     p.feedUrl,
+                    episodeCount: p.trackCount,
+                    genre:       (p.genres || []).join(', ')
+                })).filter(p => p.feedUrl);
+            }
+        } catch (e) {
+            console.warn('iTunes search failed:', e);
+        }
+
+        if (loadingDiv) loadingDiv.style.display = 'none';
+
+        if (podcasts.length === 0) {
+            if (errorDiv) {
+                errorDiv.textContent = 'No podcasts found. Try different keywords.';
+                errorDiv.style.display = 'block';
+            }
+            return;
+        }
+
+        // Render results
+        resultsList.innerHTML = podcasts.map(p => `
+            <div style="display:flex;align-items:center;gap:1rem;padding:0.75rem;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa;">
+                <img src="${p.image || 'Mascot.png'}" alt=""
+                     onerror="this.src='Mascot.png'"
+                     style="width:56px;height:56px;border-radius:6px;object-fit:cover;flex-shrink:0;">
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:0.9rem;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtmlDir(p.title)}</div>
+                    <div style="font-size:0.8rem;color:#64748b;margin:2px 0;">${escapeHtmlDir(p.author)}</div>
+                    <div style="font-size:0.75rem;color:#94a3b8;">${p.episodeCount ? p.episodeCount + ' eps' : ''} ${p.genre ? '· ' + escapeHtmlDir(p.genre.split(',')[0]) : ''}</div>
+                </div>
+                <button onclick="addDiscoveredPodcast(${JSON.stringify({ title: p.title, feedUrl: p.feedUrl, image: p.image }).replace(/"/g, '&quot;')})"
+                        style="padding:0.4rem 0.9rem;background:#12385b;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">
+                    ➕ Add
+                </button>
+            </div>`).join('');
+
+        resultsDiv.style.display = 'block';
+
+    } catch (error) {
+        if (loadingDiv) loadingDiv.style.display = 'none';
+        if (errorDiv) {
+            errorDiv.textContent = 'Search failed: ' + error.message;
+            errorDiv.style.display = 'block';
+        }
+        console.error('Directory search failed:', error);
+    }
+}
+
+function escapeHtmlDir(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function addDiscoveredPodcast(podcast) {
+    if (!podcast || !podcast.feedUrl) { alert('No RSS feed URL available for this podcast.'); return; }
+    if (!window.adminDashboard) { alert('Admin dashboard not ready.'); return; }
+
+    const rssInput = document.getElementById('rssUrl') || document.getElementById('podcastRssUrl');
+    const titleInput = document.getElementById('podcastTitle');
+
+    if (rssInput) rssInput.value = podcast.feedUrl;
+    if (titleInput) titleInput.value = podcast.title || '';
+
+    // Try to open the add podcast modal and pre-fill it
+    if (window.adminDashboard.showAddPodcastModal) {
+        window.adminDashboard.showAddPodcastModal();
+        setTimeout(() => {
+            const rss   = document.getElementById('rssUrl') || document.getElementById('podcastRssUrl');
+            const title = document.getElementById('podcastTitle');
+            if (rss)   rss.value   = podcast.feedUrl;
+            if (title) title.value = podcast.title || '';
+        }, 100);
+    } else {
+        // Fallback: prompt the user
+        const confirm = window.confirm(`Add "${podcast.title}"?\nFeed: ${podcast.feedUrl}`);
+        if (confirm && window.adminDashboard.addTrackedPodcast) {
+            await window.adminDashboard.addTrackedPodcast({ title: podcast.title, feedUrl: podcast.feedUrl, image: podcast.image });
+            window.adminDashboard.showNotification(`✅ Added "${podcast.title}"`, 'success');
+        }
+    }
+}
+
 // Make functions globally available
 window.showAddPodcastModal = showAddPodcastModal;
 window.manualSyncAllPodcasts = manualSyncAllPodcasts;
 window.removeDuplicateEpisodes = removeDuplicateEpisodes;
 window.clearDatabase = clearDatabase;
 window.exportData = exportData;
+window.exportCSV = exportCSV;
+window.searchPodcastDirectory = searchPodcastDirectory;
+window.addDiscoveredPodcast = addDiscoveredPodcast;
 window.forceUpdate = forceUpdate;
 window.testBackgroundSync = testBackgroundSync;
 window.unfeatureAllEpisodes = function() {
