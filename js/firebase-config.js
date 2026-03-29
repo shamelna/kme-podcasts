@@ -1,13 +1,32 @@
 // Firebase configuration - Use environment variables for security
-const firebaseConfig = {
-    apiKey: process.env.FIREBASE_API_KEY || "AIzaSyBYo1xq9y9qvvqepSUlsyytbc-bgEc2qjA", // NEW regenerated key
-    authDomain: "kme-podcasts.firebaseapp.com",
-    projectId: "kme-podcasts",
-    storageBucket: "kme-podcasts.firebasestorage.app",
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "635239448486",
-    appId: process.env.FIREBASE_APP_ID || "1:635239448486:web:ec37eaa33adffb7b4cd967",
-    measurementId: process.env.FIREBASE_MEASUREMENT_ID || "G-8W66LHYWJS" // NEW measurement ID
+// Note: process.env works in Node.js, for browser we need window.env or hardcoded fallback
+const getFirebaseConfig = () => {
+    // Try to get from window environment (if configured in build process)
+    if (typeof window !== 'undefined' && window.env) {
+        return {
+            apiKey: window.env.FIREBASE_API_KEY || "AIzaSyBYo1xq9y9qvvqepSUlsyytbc-bgEc2qjA",
+            authDomain: "kme-podcasts.firebaseapp.com",
+            projectId: "kme-podcasts",
+            storageBucket: "kme-podcasts.firebasestorage.app",
+            messagingSenderId: window.env.FIREBASE_MESSAGING_SENDER_ID || "635239448486",
+            appId: window.env.FIREBASE_APP_ID || "1:635239448486:web:ec37eaa33adffb7b4cd967",
+            measurementId: window.env.FIREBASE_MEASUREMENT_ID || "G-8W66LHYWJS"
+        };
+    }
+    
+    // Fallback to hardcoded values for browser
+    return {
+        apiKey: "AIzaSyBYo1xq9y9qvvqepSUlsyytbc-bgEc2qjA",
+        authDomain: "kme-podcasts.firebaseapp.com",
+        projectId: "kme-podcasts",
+        storageBucket: "kme-podcasts.firebasestorage.app",
+        messagingSenderId: "635239448486",
+        appId: "1:635239448486:web:ec37eaa33adffb7b4cd967",
+        measurementId: "G-8W66LHYWJS"
+    };
 };
+
+const firebaseConfig = getFirebaseConfig();
 
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
@@ -69,7 +88,148 @@ class AdminAuth {
 // Initialize admin auth
 const adminAuth = new AdminAuth(auth);
 
-// Firebase Firestore operations
+// User Data Management for Firebase
+class UserDataManager {
+    constructor(db, auth) {
+        this.db = db;
+        this.auth = auth;
+    }
+
+    // Save user data to Firestore
+    async saveUserData(userId, userData) {
+        try {
+            const userRef = this.db.collection('users').doc(userId);
+            await userRef.set({
+                ...userData,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            console.log('✅ User data saved to Firebase');
+            return true;
+        } catch (error) {
+            console.error('❌ Error saving user data:', error);
+            throw error;
+        }
+    }
+
+    // Load user data from Firestore
+    async loadUserData(userId) {
+        try {
+            const userRef = this.db.collection('users').doc(userId);
+            const doc = await userRef.get();
+            
+            if (doc.exists) {
+                return doc.data();
+            } else {
+                // Return default user data if not found
+                return {
+                    favorites: [],
+                    watchLater: [],
+                    playlists: [],
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+            }
+        } catch (error) {
+            console.error('❌ Error loading user data:', error);
+            throw error;
+        }
+    }
+
+    // Add to favorites
+    async addToFavorites(userId, episode) {
+        try {
+            const userRef = this.db.collection('users').doc(userId);
+            await userRef.update({
+                favorites: firebase.firestore.FieldValue.arrayUnion(episode),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            console.log('✅ Added to favorites');
+            return true;
+        } catch (error) {
+            console.error('❌ Error adding to favorites:', error);
+            throw error;
+        }
+    }
+
+    // Remove from favorites
+    async removeFromFavorites(userId, episodeId) {
+        try {
+            const userRef = this.db.collection('users').doc(userId);
+            const userDoc = await userRef.get();
+            
+            if (userDoc.exists) {
+                const userData = userDoc.data();
+                const updatedFavorites = userData.favorites.filter(fav => fav.id !== episodeId);
+                await userRef.update({
+                    favorites: updatedFavorites,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                console.log('✅ Removed from favorites');
+                return true;
+            }
+        } catch (error) {
+            console.error('❌ Error removing from favorites:', error);
+            throw error;
+        }
+    }
+
+    // Add to watch later
+    async addToWatchLater(userId, episode) {
+        try {
+            const userRef = this.db.collection('users').doc(userId);
+            await userRef.update({
+                watchLater: firebase.firestore.FieldValue.arrayUnion(episode),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            console.log('✅ Added to watch later');
+            return true;
+        } catch (error) {
+            console.error('❌ Error adding to watch later:', error);
+            throw error;
+        }
+    }
+
+    // Remove from watch later
+    async removeFromWatchLater(userId, episodeId) {
+        try {
+            const userRef = this.db.collection('users').doc(userId);
+            const userDoc = await userRef.get();
+            
+            if (userDoc.exists) {
+                const userData = userDoc.data();
+                const updatedWatchLater = userData.watchLater.filter(item => item.id !== episodeId);
+                await userRef.update({
+                    watchLater: updatedWatchLater,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                console.log('✅ Removed from watch later');
+                return true;
+            }
+        } catch (error) {
+            console.error('❌ Error removing from watch later:', error);
+            throw error;
+        }
+    }
+
+    // Clear all user data
+    async clearAllUserData(userId) {
+        try {
+            const userRef = this.db.collection('users').doc(userId);
+            await userRef.set({
+                favorites: [],
+                watchLater: [],
+                playlists: [],
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            console.log('✅ All user data cleared');
+            return true;
+        } catch (error) {
+            console.error('❌ Error clearing user data:', error);
+            throw error;
+        }
+    }
+}
+
+// Podcast Database Management
 class PodcastDatabase {
     constructor(db) {
         this.db = db;
@@ -279,182 +439,6 @@ class PodcastDatabase {
             throw error;
         }
     }
-
-    async trackEpisodePlay(playData) {
-        try {
-            await this.db.collection('analytics').doc('plays').collection('episodes').add(playData);
-            console.log('✅ Episode play tracked:', playData.episodeId);
-        } catch (error) {
-            console.error('Error tracking episode play:', error);
-            throw error;
-        }
-    }
-
-    async getAnalyticsData() {
-        try {
-            // Get visitor stats
-            const visitorsSnapshot = await this.db.collection('analytics').doc('visitors').collection('visits')
-                .orderBy('timestamp', 'desc')
-                .limit(1000)
-                .get();
-
-            // Get play stats
-            const playsSnapshot = await this.db.collection('analytics').doc('plays').collection('episodes')
-                .orderBy('timestamp', 'desc')
-                .limit(1000)
-                .get();
-
-            return {
-                visitors: visitorsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-                plays: playsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-            };
-
-        } catch (error) {
-            console.error('Error getting analytics data:', error);
-            return null;
-        }
-    }
-}
-
-// User Data Management for Firebase
-class UserDataManager {
-    constructor(db, auth) {
-        this.db = db;
-        this.auth = auth;
-    }
-
-    // Save user data to Firestore
-    async saveUserData(userId, userData) {
-        try {
-            const userRef = this.db.collection('users').doc(userId);
-            await userRef.set({
-                ...userData,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-            console.log('✅ User data saved to Firebase');
-            return true;
-        } catch (error) {
-            console.error('❌ Error saving user data:', error);
-            throw error;
-        }
-    }
-
-    // Load user data from Firestore
-    async loadUserData(userId) {
-        try {
-            const userRef = this.db.collection('users').doc(userId);
-            const doc = await userRef.get();
-            
-            if (doc.exists) {
-                return doc.data();
-            } else {
-                // Return default user data if not found
-                return {
-                    favorites: [],
-                    watchLater: [],
-                    playlists: [],
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                };
-            }
-        } catch (error) {
-            console.error('❌ Error loading user data:', error);
-            throw error;
-        }
-    }
-
-    // Add to favorites
-    async addToFavorites(userId, episode) {
-        try {
-            const userRef = this.db.collection('users').doc(userId);
-            await userRef.update({
-                favorites: firebase.firestore.FieldValue.arrayUnion(episode),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            console.log('✅ Added to favorites');
-            return true;
-        } catch (error) {
-            console.error('❌ Error adding to favorites:', error);
-            throw error;
-        }
-    }
-
-    // Remove from favorites
-    async removeFromFavorites(userId, episodeId) {
-        try {
-            const userRef = this.db.collection('users').doc(userId);
-            const userDoc = await userRef.get();
-            
-            if (userDoc.exists) {
-                const userData = userDoc.data();
-                const updatedFavorites = userData.favorites.filter(fav => fav.id !== episodeId);
-                await userRef.update({
-                    favorites: updatedFavorites,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                console.log('✅ Removed from favorites');
-                return true;
-            }
-        } catch (error) {
-            console.error('❌ Error removing from favorites:', error);
-            throw error;
-        }
-    }
-
-    // Add to watch later
-    async addToWatchLater(userId, episode) {
-        try {
-            const userRef = this.db.collection('users').doc(userId);
-            await userRef.update({
-                watchLater: firebase.firestore.FieldValue.arrayUnion(episode),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            console.log('✅ Added to watch later');
-            return true;
-        } catch (error) {
-            console.error('❌ Error adding to watch later:', error);
-            throw error;
-        }
-    }
-
-    // Remove from watch later
-    async removeFromWatchLater(userId, episodeId) {
-        try {
-            const userRef = this.db.collection('users').doc(userId);
-            const userDoc = await userRef.get();
-            
-            if (userDoc.exists) {
-                const userData = userDoc.data();
-                const updatedWatchLater = userData.watchLater.filter(item => item.id !== episodeId);
-                await userRef.update({
-                    watchLater: updatedWatchLater,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                console.log('✅ Removed from watch later');
-                return true;
-            }
-        } catch (error) {
-            console.error('❌ Error removing from watch later:', error);
-            throw error;
-        }
-    }
-
-    // Clear all user data
-    async clearAllUserData(userId) {
-        try {
-            const userRef = this.db.collection('users').doc(userId);
-            await userRef.set({
-                favorites: [],
-                watchLater: [],
-                playlists: [],
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-            console.log('✅ All user data cleared');
-            return true;
-        } catch (error) {
-            console.error('❌ Error clearing user data:', error);
-            throw error;
-        }
-    }
 }
 
 // Initialize Database and User Manager
@@ -468,6 +452,7 @@ if (typeof window !== 'undefined') {
     window.db = db;
     window.auth = auth;
     window.adminAuth = adminAuth;
+    window.firebase = firebase;
 }
 
 // Export for use in other files

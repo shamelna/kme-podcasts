@@ -221,11 +221,18 @@ class PodcastApp {
 
     async loadData() {
         try {
+            // Check if podcastDB is available
+            if (!window.podcastDB) {
+                console.error('❌ podcastDB not available');
+                this.updateLoadingText('⚠️ Error', 'Database not available. Please refresh the page.');
+                return;
+            }
+            
             // Update loading text
             this.updateLoadingText('🎵 Loading Podcasts...', 'Fetching featured episodes...');
             
             // Load featured episodes
-            this.featuredEpisodes = await podcastDB.getFeaturedEpisodes();
+            this.featuredEpisodes = await window.podcastDB.getFeaturedEpisodes();
             // Limit to 5 episodes
             this.featuredEpisodes = this.featuredEpisodes.slice(0, 5);
             console.log('✅ Featured episodes loaded:', this.featuredEpisodes.length);
@@ -234,14 +241,14 @@ class PodcastApp {
             this.updateLoadingText('🎵 Loading Podcasts...', 'Fetching latest episodes...');
             
             // Load latest episodes
-            this.latestEpisodes = await podcastDB.getLatestEpisodes(5);
+            this.latestEpisodes = await window.podcastDB.getLatestEpisodes(5);
             console.log('✅ Latest episodes loaded:', this.latestEpisodes.length);
             
             // Update loading text
             this.updateLoadingText('🎵 Loading Podcasts...', 'Loading all episodes...');
             
             // Load all episodes for search and pagination
-            this.episodes = await podcastDB.getAllEpisodes();
+            this.episodes = await window.podcastDB.getAllEpisodes();
             console.log('✅ All episodes loaded:', this.episodes.length);
             
             // Extract podcast titles from episodes

@@ -99,32 +99,44 @@ class AdminDashboard {
 
     async init() {
         try {
-            // Set up auth state monitoring
-            if (window.adminAuth) {
-                window.adminAuth.onAuthStateChanged((user) => {
-                    if (!user) {
-                        this.redirectToLogin();
-                        return;
-                    }
-                    
-                    if (!window.adminAuth.isAdmin()) {
-                        console.warn('⚠️ User is not admin, redirecting');
-                        this.redirectToLogin();
-                        return;
-                    }
-                    
-                    console.log('🔥 Admin authenticated via Firebase');
-                    this.loadDashboardData();
-                });
+            console.log('🔧 Initializing Admin Dashboard...');
+            
+            // Wait for Firebase to be available
+            if (typeof window !== 'undefined' && window.firebase) {
+                // Check if Firebase is properly initialized
+                if (!window.firebase.apps.length) {
+                    console.error('❌ Firebase not initialized');
+                    this.showError('Firebase not initialized. Please check configuration.');
+                    return;
+                }
+                
+                // Set up auth state monitoring
+                if (window.adminAuth) {
+                    console.log('✅ AdminAuth available, setting up auth state monitoring...');
+                    window.adminAuth.onAuthStateChanged((user) => {
+                        if (!user) {
+                            console.log('🔒 No user authenticated, redirecting to login');
+                            this.redirectToLogin();
+                            return;
+                        }
+                        
+                        if (!window.adminAuth.isAdmin()) {
+                            console.warn('⚠️ User is not admin, redirecting');
+                            this.redirectToLogin();
+                            return;
+                        }
+                        
+                        console.log('🔥 Admin authenticated via Firebase');
+                        this.loadDashboardData();
+                    });
+                } else {
+                    console.error('❌ AdminAuth not available');
+                    this.showError('Admin authentication not available. Please refresh the page.');
+                    return;
+                }
             } else {
-                console.error('❌ AdminAuth not available');
-                return;
-            }
-
-            // Check if Firebase is available
-            if (!this.db || !firebase.apps.length) {
-                console.warn('Firebase not available, using mock data');
-                await this.loadDashboardData();
+                console.error('❌ Firebase not available');
+                this.showError('Firebase not available. Please check your internet connection.');
                 return;
             }
 
