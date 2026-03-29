@@ -1,12 +1,12 @@
 // Firebase configuration - Use environment variables for security
 const firebaseConfig = {
-    apiKey: process.env.FIREBASE_API_KEY || "YOUR_NEW_API_KEY_HERE", // Set via environment variable
+    apiKey: process.env.FIREBASE_API_KEY || "AIzaSyBYo1xq9y9qvvqepSUlsyytbc-bgEc2qjA", // NEW regenerated key
     authDomain: "kme-podcasts.firebaseapp.com",
     projectId: "kme-podcasts",
     storageBucket: "kme-podcasts.firebasestorage.app",
     messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "635239448486",
-    appId: process.env.FIREBASE_APP_ID || "1:635239448486:web:57c7f8c39009e3bb4cd967",
-    measurementId: process.env.FIREBASE_MEASUREMENT_ID || "G-NSEVF9C6G1"
+    appId: process.env.FIREBASE_APP_ID || "1:635239448486:web:ec37eaa33adffb7b4cd967",
+    measurementId: process.env.FIREBASE_MEASUREMENT_ID || "G-8W66LHYWJS" // NEW measurement ID
 };
 
 // Initialize Firebase
