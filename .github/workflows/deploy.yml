@@ -1,0 +1,57 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+      
+    - name: Build for GitHub Pages
+      run: |
+        # Create a build directory
+        mkdir -p build
+        
+        # Copy essential files for GitHub Pages
+        cp index.html build/
+        cp -r css build/
+        cp -r js build/
+        
+        # Create .nojekyll file to ensure proper processing
+        touch build/.nojekyll
+        
+        # Create CNAME file for custom domain
+        echo "podcast.kaizenmadeeasy.com" > build/CNAME
+        
+      shell: bash
+      
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: build
+        
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+      with:
+        artifact-name: github-pages
+        force: false
