@@ -1,0 +1,36 @@
+# Allow specific essential JavaScript files
+!js/admin-dashboard.js
+!js/app.js
+!js/firebase-config.js
+!js/firebase-config-secure.js
+!js/podcast-sync.js
+!js/rss-parser.js
+!js/auto-update-service.js
+!js/seed-data.js
+
+# Block all other JavaScript files
+*.js
+
+# Node modules
+node_modules/
+npm-debug.log*
+
+# Development and test files
+test-worker.js
+service-worker-broken.js
+create-firebase-index.js
+
+# Development tools
+*.log
+.DS_Store
+
+# Source maps
+*.map
+
+# IDE files
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp

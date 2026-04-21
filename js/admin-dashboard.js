@@ -847,6 +847,59 @@ class AdminDashboard {
         }
     }
 
+    // Check if RSS feed needs update using HTTP headers
+    async checkIfFeedNeedsUpdate(rssUrl, lastSyncDate) {
+        try {
+            // If no previous sync, always fetch
+            if (!lastSyncDate) {
+                return true;
+            }
+
+            // Try to get only headers first (HEAD request)
+            const proxies = [
+                'https://podcast-rss-proxy.eng-a-redwan.workers.dev/?url=',
+                'https://corsproxy.io/?',
+                'https://api.allorigins.win/raw?url='
+            ];
+
+            for (const proxy of proxies) {
+                try {
+                    const fetchUrl = proxy + encodeURIComponent(rssUrl);
+                    const response = await fetch(fetchUrl, { method: 'HEAD' });
+                    
+                    if (response.ok) {
+                        const lastModified = response.headers.get('last-modified');
+                        const etag = response.headers.get('etag');
+                        
+                        // If we have modification info, compare with last sync
+                        if (lastModified) {
+                            const lastModifiedDate = new Date(lastModified);
+                            const syncDate = new Date(lastSyncDate);
+                            return lastModifiedDate > syncDate;
+                        }
+                        
+                        // If no last-modified but we have etag, assume update needed
+                        if (etag) {
+                            return true;
+                        }
+                        
+                        // If no headers available, fall back to full fetch
+                        return true;
+                    }
+                } catch (error) {
+                    console.debug(`HEAD request failed for ${rssUrl} with ${proxy}:`, error);
+                    continue;
+                }
+            }
+            
+            // If all HEAD requests fail, fall back to full fetch
+            return true;
+        } catch (error) {
+            console.debug(`Error checking feed updates for ${rssUrl}:`, error);
+            return true; // Fall back to full fetch on error
+        }
+    }
+
     async manualSyncAllPodcasts() {
         if (!this.validateAdminPassword()) return;
         
@@ -855,7 +908,7 @@ class AdminDashboard {
         if (!shouldContinue) return;
         
         try {
-            this.showNotification('🔄 Starting podcast sync... This may take a few minutes.', 'info');
+            this.showNotification('🔄 Starting smart podcast sync... Checking for updates only.', 'info');
             this.showSyncProgress(0, 'Initializing...');
             
             // Get all podcasts from Firestore (include both active and inactive)
@@ -874,7 +927,7 @@ class AdminDashboard {
             let errors = [];
             let syncResults = []; // Track detailed results per podcast
             
-            // Process each podcast
+            // Process each podcast with smart refresh logic
             for (const podcastDoc of podcastsSnapshot.docs) {
                 const podcast = podcastDoc.data();
                 const podcastId = podcastDoc.id;
@@ -882,12 +935,7 @@ class AdminDashboard {
                 try {
                     processedPodcasts++;
                     const progress = Math.round((processedPodcasts / totalPodcasts) * 100);
-                    this.showSyncProgress(progress, `Syncing "${podcast.title}"...`);
-                    this.showNotification(`🔄 Syncing "${podcast.title}"... (${processedPodcasts}/${totalPodcasts})`, 'info');
-                    
-                    console.log(`📻 Processing podcast: "${podcast.title}"`);
-                    console.log(`🔗 RSS URL: ${podcast.rssUrl}`);
-                    console.log(`🆔 Podcast ID: ${podcastId}`);
+                    this.showSyncProgress(progress, `Checking "${podcast.title}"...`);
                     
                     // Skip if RSS URL is missing or invalid
                     if (!podcast.rssUrl || podcast.rssUrl === '-' || podcast.rssUrl.trim() === '') {
@@ -901,6 +949,25 @@ class AdminDashboard {
                         });
                         continue;
                     }
+                    
+                    // Check if RSS feed has been modified since last sync
+                    const lastSyncDate = podcast.lastSyncDate || null;
+                    const shouldFetch = await this.checkIfFeedNeedsUpdate(podcast.rssUrl, lastSyncDate);
+                    
+                    if (!shouldFetch) {
+                        console.log(`⏭️ Skipping "${podcast.title}" - No updates since last sync`);
+                        syncResults.push({
+                            podcast: podcast.title,
+                            status: 'skipped',
+                            reason: 'No updates',
+                            newEpisodes: 0,
+                            totalEpisodes: podcast.episodeCount || 0
+                        });
+                        continue;
+                    }
+                    
+                    console.log(`📻 Processing podcast: "${podcast.title}"`);
+                    
                     
                     // Try multiple CORS proxies with fallback
                     const proxies = [
@@ -981,12 +1048,17 @@ class AdminDashboard {
                         existingEpisodeTitles.add(title);
                     });
                     
-                    console.log(`📚 Found ${existingEpisodeTitles.size} existing episodes for "${podcast.title}"`);
-                    console.log('📋 Existing episode titles (first 10):', Array.from(existingEpisodeTitles).slice(0, 10));
-                    
                     // Arrays for new episodes and episodes needing image updates
                     const syncedEpisodes = [];
                     const episodesToUpdate = [];
+                    
+                    if (syncedEpisodes.length === 0 && episodesToUpdate.length === 0) {
+                        console.log(`⏭️ No new episodes or image updates for "${podcast.title}" - skipping episode processing`);
+                        // Skip to next podcast immediately
+                        continue;
+                    } else {
+                        console.log(`📚 Found ${existingEpisodeTitles.size} existing episodes for "${podcast.title}"`);
+                    }
                     
                     for (const item of items) {
                         const episodeTitle = item.querySelector('title')?.textContent?.trim() || '';
@@ -1050,7 +1122,9 @@ class AdminDashboard {
                         }
                     }
                     
-                    console.log(`🆕 Found ${syncedEpisodes.length} new episodes to add for "${podcast.title}"`);
+                    if (syncedEpisodes.length > 0) {
+                        console.log(`🆕 Found ${syncedEpisodes.length} new episodes to add for "${podcast.title}"`);
+                    }
                     
                     // Add new episodes to Firestore
                     if (syncedEpisodes.length > 0) {
@@ -1068,9 +1142,10 @@ class AdminDashboard {
                         console.log(`ℹ️ No new episodes to add for "${podcast.title}"`);
                     }
                     
-                    // Update existing episodes with missing images
+                    // Update existing episodes with missing images (batch operation)
                     if (episodesToUpdate.length > 0) {
                         console.log(`🖼️ Updating ${episodesToUpdate.length} existing episodes with images...`);
+                        let imageUpdateCount = 0;
                         const imageUpdateBatch = this.db.batch();
                         
                         for (const episodeToUpdate of episodesToUpdate) {
@@ -1086,7 +1161,12 @@ class AdminDashboard {
                                 imageUpdateBatch.update(episodeDoc.ref, {
                                     image: episodeToUpdate.image
                                 });
-                                console.log(`📸 Updated image for: "${episodeToUpdate.title}"`);
+                                imageUpdateCount++;
+                                
+                                // Batch update - reduced logging
+                                if (imageUpdateCount % 10 === 0) {
+                                    console.log(`📸 Updated ${imageUpdateCount} episode images so far...`);
+                                }
                             }
                         }
                         
@@ -1108,6 +1188,7 @@ class AdminDashboard {
                     // Update podcast metadata
                     const podcastUpdateData = {
                         lastUpdated: new Date().toISOString(),
+                        lastSyncDate: new Date().toISOString(),
                         episodeCount: existingEpisodesSnapshot.size + syncedEpisodes.length
                     };
                     
