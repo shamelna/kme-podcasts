@@ -1113,8 +1113,6 @@ class AdminDashboard {
             this.hideSyncProgress();
             
             // Show detailed sync results
-            console.log('🎯 Showing sync results modal with', syncResults.length, 'results');
-            console.log('📊 Sync results data:', syncResults);
             this.showDetailedSyncResults(syncResults, totalNewEpisodes, errors.length);
             
             // Also show brief notification
@@ -1971,9 +1969,6 @@ class AdminDashboard {
     }
 
     showDetailedSyncResults(syncResults, totalNewEpisodes, errorCount) {
-        console.log('🎨 Creating sync results modal...');
-        console.log('📈 Modal data:', { syncResults, totalNewEpisodes, errorCount });
-        
         // Create detailed results modal
         const modal = document.createElement('div');
         modal.className = 'sync-results-modal';
@@ -2062,14 +2057,11 @@ class AdminDashboard {
         `;
 
         modal.innerHTML = resultsHTML;
-        console.log('🎯 Adding modal to DOM...');
         document.body.appendChild(modal);
-        console.log('✅ Modal added to DOM. Total modals in body:', document.querySelectorAll('.sync-results-modal').length);
 
         // Auto-hide after 30 seconds
         setTimeout(() => {
             if (document.body.contains(modal)) {
-                console.log('⏰ Auto-hiding sync results modal');
                 document.body.removeChild(modal);
             }
         }, 30000);
