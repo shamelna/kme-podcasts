@@ -2058,13 +2058,6 @@ class AdminDashboard {
 
         modal.innerHTML = resultsHTML;
         document.body.appendChild(modal);
-
-        // Auto-hide after 30 seconds
-        setTimeout(() => {
-            if (document.body.contains(modal)) {
-                document.body.removeChild(modal);
-            }
-        }, 30000);
     }
 
     // Load and display all podcasts (including inactive ones)
