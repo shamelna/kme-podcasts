@@ -965,8 +965,9 @@ class AdminDashboard {
                     const parseError = xmlDoc.querySelector('parsererror');
                     if (parseError) throw new Error('Invalid RSS feed format');
 
-                    // Extract podcast-level image
+                    // Extract podcast-level image (guard against non-RSS responses)
                     const channel = xmlDoc.querySelector('channel');
+                    if (!channel) throw new Error('Response is not a valid RSS feed');
                     const podcastImageUrl = this.extractImage(channel) || podcast.imageUrl || '';
 
                     // Extract episodes
@@ -2756,6 +2757,11 @@ class AdminDashboard {
 
     // Extract podcast-level image using comprehensive selectors
     extractImage(channel) {
+        // Add null check to prevent BuzzSprout parsing errors
+        if (!channel) {
+            return null;
+        }
+        
         const imageSelectors = [
             'itunes:image',
             'itunes:image href', 
@@ -2798,6 +2804,11 @@ class AdminDashboard {
 
     // Helper method to extract text from XML elements (matching rss-parser.js)
     getElementText(parent, selector) {
+        // Add null check to prevent BuzzSprout parsing errors
+        if (!parent) {
+            return null;
+        }
+        
         // Handle XML namespaces for iTunes elements
         if (selector.includes(':')) {
             const [prefix, tag] = selector.split(':');
