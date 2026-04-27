@@ -82,12 +82,18 @@ async function handleRequest(request) {
       console.log(`Unexpected content type: ${contentType}, content preview: ${content.substring(0, 200)}`)
     }
 
-    // Return the RSS content with proper CORS headers
-    return new Response(content, {
+    // Wrap XML content in JSON response
+    const jsonResponse = JSON.stringify({
+      success: true,
+      data: content,
+      contentType: contentType
+    });
+
+    return new Response(jsonResponse, {
       status: 200,
       headers: {
         ...getCorsHeaders(isAllowedOrigin, origin),
-        'Content-Type': 'application/rss+xml; charset=utf-8',
+        'Content-Type': 'application/json; charset=utf-8',
         'Cache-Control': 'public, max-age=300' // Cache for 5 minutes
       }
     })
