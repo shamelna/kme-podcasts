@@ -947,7 +947,25 @@ class AdminDashboard {
                             });
 
                             if (response.ok) {
-                                rssText = await response.text();
+                                let responseText = await response.text();
+                                
+                                // Handle JSON-wrapped response from Cloudflare worker
+                                if (proxy.includes('podcast-rss-proxy')) {
+                                    try {
+                                        const jsonResponse = JSON.parse(responseText);
+                                        if (jsonResponse.success && jsonResponse.data) {
+                                            rssText = jsonResponse.data;
+                                        } else {
+                                            throw new Error('Invalid JSON response from proxy');
+                                        }
+                                    } catch (parseError) {
+                                        // Fallback: treat as raw XML if JSON parsing fails
+                                        rssText = responseText;
+                                    }
+                                } else {
+                                    rssText = responseText;
+                                }
+                                
                                 fetchSuccess = true;
                                 break;
                             }
