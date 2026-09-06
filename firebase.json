@@ -3,6 +3,9 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "functions": {
+    "source": "functions"
+  },
   "hosting": {
     "public": ".",
     "ignore": [
@@ -16,7 +19,7 @@
       ".env.example",
       ".git",
       ".gitattributes",
-      "node_modules",
+      "node_modules/**",
       "package.json",
       "package-lock.json",
       "cloudflare-worker",
@@ -37,11 +40,39 @@
         "destination": "/service-worker.js"
       },
       {
+        "source": "/admin/**",
+        "destination": "/admin/index.html"
+      },
+      {
+        "source": "/admin",
+        "destination": "/admin/index.html"
+      },
+      {
+        "source": "/subscribe",
+        "destination": "/podcast-pro-landing.html"
+      },
+      {
+        "source": "/subscribe/**",
+        "destination": "/podcast-pro-landing.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
     ],
     "headers": [
+      {
+        "source": "/index.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        ]
+      },
+      {
+        "source": "/admin.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        ]
+      },
       {
         "source": "**/*.js",
         "headers": [
