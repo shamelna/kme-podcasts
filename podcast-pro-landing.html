@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KME Podcast Pro — Kaizen Made Easy</title>
+<meta name="description" content="Every new episode from 20+ Lean and continuous improvement podcasts, delivered in one digest. Choose weekly, biweekly, or monthly. Free during early access.">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="KME Podcast Pro — Kaizen Made Easy">
+<meta property="og:description" content="Every new episode from 20+ Lean and continuous improvement podcasts, delivered in one digest. Choose your cadence.">
+<meta property="og:url" content="https://podcast.kaizenmadeeasy.com">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#12385b;
+    --blue:#017bb5;
+    --red:#de1738;
+    --mist:#e9f0f8;
+    --paper:#f7f4ef;
+    --charcoal:#1a1a1a;
+    --line:#d9e2ef;
+    --muted:#6b7a90;
+    --white:#ffffff;
+    --radius:8px;
+    --wrap:1120px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    font-family:'Inter',Arial,Helvetica,sans-serif;
+    color:var(--charcoal);
+    background:var(--white);
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{
+    font-family:'Space Grotesk',Arial,Helvetica,sans-serif;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  a{color:var(--blue);}
+  img{max-width:100%;display:block;}
+  .wrap{max-width:var(--wrap);margin:0 auto;padding:0 28px;}
+
+  /* NAV */
+  .nav{padding:22px 0;}
+  .nav .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;}
+  .nav img{height:34px;width:auto;}
+  .nav a.hub-link{
+    font-size:14px;font-weight:600;color:var(--navy);text-decoration:none;
+    border-bottom:2px solid transparent;white-space:nowrap;
+  }
+  .nav a.hub-link:hover{border-bottom-color:var(--blue);}
+
+  /* HERO */
+  .hero{background:var(--navy);color:var(--white);padding:64px 0 76px;overflow:hidden;}
+  .hero .wrap{display:grid;grid-template-columns:1.15fr 0.85fr;gap:48px;align-items:center;}
+  .hero-eyebrow{color:#ff8a9c;font-size:14px;font-weight:700;letter-spacing:.03em;margin:0 0 14px;}
+  .hero h1{font-size:44px;line-height:1.12;font-weight:700;color:var(--white);margin-bottom:20px;}
+  .hero p.lede{font-size:18px;line-height:1.6;color:#c7dcee;max-width:47ch;margin:0 0 30px;}
+  .hero-ctas{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+  .btn{
+    display:inline-block;font-family:'Inter',Arial,sans-serif;font-size:16px;font-weight:700;
+    text-decoration:none;padding:15px 30px;border-radius:6px;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .btn-primary{background:var(--blue);color:var(--white);}
+  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(1,123,181,.35);}
+  a:focus-visible, input:focus-visible{outline:3px solid #ffd166;outline-offset:2px;}
+  .link-quiet{
+    font-size:15px;font-weight:600;color:#c7dcee;text-decoration:none;
+    border-bottom:1px solid rgba(199,220,238,.5);padding-bottom:2px;
+  }
+  .link-quiet:hover{color:var(--white);}
+  .hero-fine{margin:16px 0 0;font-size:14px;color:#9fbdd8;font-weight:600;}
+  .hero-visual{text-align:center;}
+  .hero-visual img{max-width:280px;margin:0 auto;}
+  .hero-fade{animation:riseIn .7s ease both;}
+  .hero-fade.d2{animation-delay:.12s;}
+  .hero-fade.d3{animation-delay:.22s;}
+  @keyframes riseIn{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+  @media (prefers-reduced-motion: reduce){.hero-fade{animation:none;} html{scroll-behavior:auto;}}
+
+  /* STATS */
+  .stats{background:var(--paper);padding:56px 0;border-bottom:1px solid #e6e1d6;}
+  .stats .wrap{display:grid;grid-template-columns:repeat(3,1fr);gap:32px;}
+  .stat .num{
+    font-family:'Space Grotesk',Arial,sans-serif;font-size:72px;font-weight:700;
+    line-height:1;color:var(--charcoal);opacity:.9;
+  }
+  .stat .label{margin-top:10px;font-size:15px;color:#54524a;max-width:26ch;line-height:1.45;}
+
+  /* WHY */
+  .why{padding:88px 0 84px;}
+  .section-head{max-width:640px;margin:0 0 46px;}
+  .section-head h2{font-size:32px;color:var(--navy);line-height:1.25;}
+  .section-head p{font-size:17px;color:var(--muted);margin-top:12px;line-height:1.6;}
+  .why-grid{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);}
+  .why-item{padding:30px 28px 30px 0;border-right:1px solid var(--line);}
+  .why-item:last-child{border-right:none;}
+  .why-item .rule{width:34px;height:3px;background:var(--blue);margin-bottom:18px;}
+  .why-item h3{font-size:19px;color:var(--navy);margin-bottom:10px;}
+  .why-item p{font-size:15.5px;line-height:1.6;color:#3d4c5c;margin:0;}
+
+  /* SAMPLE */
+  .sample{background:var(--mist);padding:88px 0;}
+  .sample-card{
+    background:var(--white);border-radius:var(--radius);
+    box-shadow:0 20px 50px -20px rgba(18,56,91,.28);
+    overflow:hidden;max-width:600px;margin:0 auto;
+  }
+  .sample-chrome{
+    background:#f2f5fa;border-bottom:1px solid var(--line);
+    padding:14px 22px;font-size:13px;color:var(--muted);line-height:1.6;
+  }
+  .sample-chrome .from{color:var(--charcoal);font-weight:600;}
+  .sample-chrome .subj{color:var(--navy);font-weight:700;font-size:14px;}
+  .sample-masthead{background:var(--navy);text-align:center;padding:26px 24px;}
+  .sample-masthead img{width:170px;margin:0 auto;}
+  .sample-masthead .tagline{
+    font-size:10px;letter-spacing:2px;color:#ffffff;margin-top:11px;
+  }
+  .sample-body{padding:26px 28px 8px;}
+  .sample-body h3{font-size:20px;color:var(--navy);line-height:1.3;margin-bottom:10px;}
+  .sample-body .intro{font-size:15px;line-height:1.6;color:#333;margin:0 0 22px;}
+  .show-head{
+    font-size:16px;font-weight:700;color:var(--navy);
+    padding-bottom:8px;border-bottom:2px solid var(--blue);margin:26px 0 0;
+  }
+  .ep-card{
+    border:1px solid var(--line);border-radius:10px;padding:16px;margin-top:14px;
+  }
+  .ep-card img{width:104px;height:104px;object-fit:cover;border-radius:8px;margin-bottom:12px;}
+  .ep-card .ep-title{font-size:16px;font-weight:700;color:var(--navy);line-height:1.35;margin-bottom:7px;}
+  .ep-card .ep-meta{font-size:12.5px;color:var(--muted);margin-bottom:9px;}
+  .ep-card .ep-excerpt{font-size:13.5px;line-height:1.6;color:#333;margin:0 0 13px;}
+  .ep-btn{
+    display:inline-block;background:var(--blue);color:#fff;text-decoration:none;
+    font-size:13.5px;font-weight:700;padding:9px 18px;border-radius:6px;
+  }
+  .sample-fade{
+    position:relative;height:90px;margin-top:-40px;
+    background:linear-gradient(to bottom, rgba(255,255,255,0) 0%, #ffffff 72%);
+  }
+  .sample-fade span{
+    position:absolute;bottom:12px;left:0;right:0;text-align:center;
+    font-size:13.5px;color:var(--muted);
+  }
+  .sample-caption{text-align:center;font-size:14px;color:var(--muted);margin-top:22px;}
+
+  /* CADENCE */
+  .cadence{padding:88px 0 20px;}
+  .cadence-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:34px;}
+  .cadence-option{
+    border:1px solid var(--line);border-left:3px solid var(--blue);
+    border-radius:var(--radius);padding:24px 22px;background:#fbfcfe;
+  }
+  .cadence-copy .pace{display:block;font-size:12px;font-weight:700;letter-spacing:.03em;color:var(--muted);margin-bottom:8px;}
+  .cadence-copy h3{font-size:20px;color:var(--navy);margin-bottom:8px;}
+  .cadence-copy p{font-size:14.5px;line-height:1.55;color:#3d4c5c;margin:0;}
+
+  /* JOIN */
+  .join{background:var(--navy);color:var(--white);padding:84px 0 90px;text-align:center;}
+  .join h2{font-size:32px;color:var(--white);margin-bottom:14px;}
+  .join p.sub{font-size:17px;color:#c7dcee;max-width:54ch;margin:0 auto 38px;line-height:1.6;}
+  .form-shell{
+    max-width:460px;margin:0 auto;background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.16);border-radius:var(--radius);
+    padding:34px 30px 28px;
+  }
+  .join-fine{font-size:13px;color:#9fbdd8;margin-top:18px;}
+
+
+  /* ---- Kit form overrides (form 9887397) ---- */
+  .form-shell{padding:30px 26px 22px;}
+  .kme-ck{box-shadow:none !important;max-width:100% !important;min-width:0 !important;background:transparent !important;}
+  .kme-ck [data-style="clean"]{display:block !important;width:100%;}
+  .kme-ck .formkit-field{margin:0 0 12px 0 !important;}
+  .kme-ck .formkit-input{
+    width:100% !important;background:#ffffff !important;color:var(--charcoal) !important;
+    font-family:'Inter',Arial,sans-serif !important;font-size:15px !important;
+    padding:14px 15px !important;border:1px solid rgba(255,255,255,.25) !important;
+    border-radius:6px !important;line-height:1.4 !important;
+  }
+  .kme-ck .formkit-input::placeholder{color:#8496a8 !important;opacity:1 !important;}
+  .kme-ck .formkit-input:focus{border-color:var(--blue) !important;outline:3px solid #ffd166;outline-offset:1px;}
+  .kme-ck [data-group="dropdown"]{width:100% !important;}
+  .kme-ck [data-group="dropdown"]::before{border-color:#4f4f4f transparent transparent transparent !important;right:14px !important;}
+  .kme-ck .formkit-select{
+    width:100% !important;background:#ffffff !important;color:var(--charcoal) !important;
+    font-family:'Inter',Arial,sans-serif !important;font-size:15px !important;
+    padding:14px 30px 14px 15px !important;border:1px solid rgba(255,255,255,.25) !important;
+    border-radius:6px !important;cursor:pointer;
+  }
+  .kme-ck .formkit-submit{
+    width:100% !important;margin:6px 0 0 0 !important;
+    background-color:var(--red) !important;border-radius:6px !important;
+    font-family:'Inter',Arial,sans-serif !important;font-weight:700 !important;
+    font-size:16px !important;color:#ffffff !important;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .kme-ck .formkit-submit:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(222,23,56,.4);}
+  .kme-ck .formkit-submit > span{padding:15px 24px !important;}
+  .kme-ck .formkit-disclaimer{
+    color:#9fbdd8 !important;font-size:12.5px !important;line-height:1.5 !important;
+    margin:16px 0 0 0 !important;font-family:'Inter',Arial,sans-serif !important;
+  }
+  .kme-ck .formkit-alert{margin:0 0 14px 0 !important;font-size:14px !important;}
+  .kme-ck .formkit-powered-by-convertkit-container{display:none !important;}
+  .kme-ck .formkit-background,.kme-ck .formkit-header{display:none !important;}
+
+  /* ---- Secondary CTA band ---- */
+  .recap{background:var(--paper);padding:70px 0;text-align:center;border-top:1px solid #e6e1d6;}
+  .recap h2{font-size:28px;color:var(--charcoal);margin-bottom:12px;}
+  .recap p{font-size:16px;color:#54524a;max-width:50ch;margin:0 auto 28px;line-height:1.6;}
+  .btn-red{background:var(--red);color:#fff;}
+  .btn-red:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(222,23,56,.35);}
+
+  /* FOOTER */
+  footer{background:var(--navy);border-top:1px solid rgba(255,255,255,.1);padding:36px 0;}
+  footer .wrap{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;}
+  footer .brand{display:flex;align-items:center;gap:12px;}
+  footer .brand img{height:26px;}
+  footer .brand span{font-size:13px;color:#9fbdd8;}
+  footer nav a{color:#c7dcee;font-size:13px;text-decoration:none;margin-left:22px;}
+  footer nav a:hover{color:var(--white);}
+
+  @media (max-width: 860px){
+    .hero .wrap{grid-template-columns:1fr;}
+    .hero-visual{order:-1;max-width:190px;margin:0 auto 12px;}
+    .hero h1{font-size:33px;}
+    .stats .wrap,.why-grid,.cadence-grid{grid-template-columns:1fr;}
+    .stat .num{font-size:60px;}
+    .why-item{border-right:none;border-bottom:1px solid var(--line);padding:26px 0;}
+    .why-item:last-child{border-bottom:none;}
+    footer .wrap{flex-direction:column;align-items:flex-start;}
+    footer nav a{margin-left:0;margin-right:18px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <img src="https://marketing.kaizenmadeeasy.com/assets/images/Logo_blue.png" alt="Kaizen Made Easy">
+    <a class="hub-link" href="https://podcast.kaizenmadeeasy.com">Browse the free Podcast Hub →</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <p class="hero-eyebrow hero-fade">KME Podcast Pro</p>
+      <h1 class="hero-fade d2">20+ podcasts. One digest. Zero wasted listening.</h1>
+      <p class="lede hero-fade d3">We track more than 20 of the leading podcasts in Lean and continuous improvement — over 5,000 episodes and counting — and send you every new release on a schedule you pick.</p>
+      <div class="hero-ctas hero-fade d3">
+        <a class="btn btn-primary" href="#join">Choose your frequency</a>
+        <a class="link-quiet" href="#how">See how it works</a>
+      </div>
+      <p class="hero-fine hero-fade d3">Free during early access — no card required.</p>
+    </div>
+    <div class="hero-visual hero-fade d2">
+      <img src="https://firebasestorage.googleapis.com/v0/b/image-upload-ka.firebasestorage.app/o/KME%2FMascot.png?alt=media&token=3c4ed645-46ad-4ce8-8211-4db169178903" alt="The Kaizen Made Easy mascot">
+    </div>
+  </div>
+</section>
+
+<section class="join" id="join">
+  <div class="wrap">
+    <h2>Start getting the digest</h2>
+    <p class="sub">Free during early access. Pick your frequency below and your first issue arrives on schedule.</p>
+
+    <div class="form-shell">
+      <!-- ================= KIT / CONVERTKIT FORM 9887397 ================= -->
+      <script src="https://f.convertkit.com/ckjs/ck.5.js"></script>
+      <form action="https://app.kit.com/forms/9887397/subscriptions"
+            class="seva-form formkit-form kme-ck"
+            method="post"
+            data-sv-form="9887397"
+            data-uid="3dcc325e11"
+            data-format="inline"
+            data-version="5">
+        <div data-style="clean">
+          <ul class="formkit-alert formkit-alert-error" data-element="errors" data-group="alert"></ul>
+          <div data-element="fields" class="seva-fields formkit-fields">
+            <div class="formkit-field">
+              <input class="formkit-input" aria-label="First name" name="fields[first_name]" placeholder="First name" type="text">
+            </div>
+            <div class="formkit-field">
+              <input class="formkit-input" name="email_address" aria-label="Email address" placeholder="Email address" required type="email">
+            </div>
+            <div class="formkit-field">
+              <div data-group="dropdown" class="formkit-8062" group="field" type="Custom" order="2"
+                   save_as="Tag" custom_field_key="desired_outcome" custom_field_label="Desired Outcome">
+                <!-- NOTE: the three options below must also exist on Form 9887397 inside Kit,
+                     or Kit will reject the submitted tag. Add them under the Frequency field. -->
+                <select class="formkit-select" data-element="tags-select" name="tags[]" required aria-label="Frequency">
+                  <option value="">How often would you like it?</option>
+                  <option value="23138378">Weekly — every 7 days</option>
+                  <option value="23138379">Biweekly — every 14 days</option>
+                  <option value="23138380">Monthly — once a month</option>
+                </select>
+              </div>
+            </div>
+            <button data-element="submit" class="formkit-submit">
+              <div class="formkit-spinner"><div></div><div></div><div></div></div>
+              <span>Send me the digest</span>
+            </button>
+          </div>
+          <div class="formkit-disclaimer" data-element="disclaimer">
+            We respect your privacy. Change your frequency or unsubscribe anytime.
+          </div>
+        </div>
+      </form>
+      <!-- =============== END KIT FORM =============== -->
+    </div>
+  </div>
+</section>
+
+<section class="stats" id="how">
+  <div class="wrap">
+    <div class="stat">
+      <div class="num">20+</div>
+      <div class="label">leading Lean and continuous improvement shows tracked on the KME Podcast Hub</div>
+    </div>
+    <div class="stat">
+      <div class="num">5,000+</div>
+      <div class="label">episodes already in the collection — and growing every week</div>
+    </div>
+    <div class="stat">
+      <div class="num">400K+</div>
+      <div class="label">professionals following Kaizen Made Easy on LinkedIn</div>
+    </div>
+  </div>
+</section>
+
+<section class="why">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Why practitioners upgrade to Pro</h2>
+      <p>The Podcast Hub is open to everyone. Pro is for people who'd rather have the new releases come to them.</p>
+    </div>
+    <div class="why-grid">
+      <div class="why-item">
+        <div class="rule"></div>
+        <h3>Everything, in one place</h3>
+        <p>Twenty-plus feeds, checked for you. Every new episode arrives in a single email instead of scattered across apps.</p>
+      </div>
+      <div class="why-item">
+        <div class="rule"></div>
+        <h3>Built around your schedule</h3>
+        <p>Weekly, biweekly, or monthly. Same coverage either way — just a wider window between digests. Change it whenever you like.</p>
+      </div>
+      <div class="why-item">
+        <div class="rule"></div>
+        <h3>Cover art, dates, and a play button</h3>
+        <p>Each episode arrives with its artwork, run time, and a direct listen link. Enough to decide in seconds what's worth your commute.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cadence">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Choose your cadence</h2>
+      <p>Pick how often you want the digest. You can switch anytime from the email footer.</p>
+    </div>
+    <div class="cadence-list">
+      <div class="cadence-grid">
+        <div class="cadence-option">
+          <span class="cadence-copy">
+            <span class="pace">EVERY WEEK</span>
+            <h3>Weekly</h3>
+            <p>Every episode released across all 20+ shows in the last 7 days.</p>
+          </span>
+        </div>
+        <div class="cadence-option">
+          <span class="cadence-copy">
+            <span class="pace">EVERY TWO WEEKS</span>
+            <h3>Biweekly</h3>
+            <p>The last 14 days of releases across every show we track, in one digest.</p>
+          </span>
+        </div>
+        <div class="cadence-option">
+          <span class="cadence-copy">
+            <span class="pace">ONCE A MONTH</span>
+            <h3>Monthly</h3>
+            <p>A full month of releases across every show we track, in one digest.</p>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sample">
+  <div class="wrap">
+    <div class="section-head" style="margin-left:auto;margin-right:auto;text-align:center;">
+      <h2>What lands in your inbox</h2>
+      <p style="margin-left:auto;margin-right:auto;">Weekly means every episode released across all 20+ shows in the last 7 days. Biweekly and monthly work the same way, just wider windows.</p>
+    </div>
+
+    <div class="sample-card">
+      <div class="sample-chrome">
+        <div><span class="from">Kaizen Made Easy</span> &nbsp;&lt;info@kaizenmadeeasy.com&gt;</div>
+        <div class="subj">🎧 7 new CI episodes this week</div>
+      </div>
+
+      <div class="sample-masthead">
+        <img src="https://marketing.kaizenmadeeasy.com/assets/images/Logo%20new%202024%20v2%20-%20White.png" alt="Kaizen Made Easy">
+        <div class="tagline">LEARN • COLLABORATE • IMPROVE</div>
+      </div>
+
+      <div class="sample-body">
+        <h3>This week in continuous improvement</h3>
+        <p class="intro">We've gathered the latest episodes from the continuous improvement podcasts we follow — <strong>7</strong> new episodes across <strong>6</strong> shows.</p>
+
+        <div class="show-head">Excellence Unlocked</div>
+        <div class="ep-card">
+          <img src="https://www.omnycontent.com/d/playlist/34440717-39e0-4c28-917a-ab9600268644/dc98fca4-40a1-4288-ab03-b153009b5466/8200c0f7-08b7-4470-8f84-b153009d3e74/image.jpg?t=1713173961&size=Large" alt="Excellence Unlocked cover art">
+          <div class="ep-title">Ep117 Continuous Improvement Is a Leadership Skill — Paul Ives</div>
+          <div class="ep-meta">Tue, 01 Sep 2026 &nbsp;·&nbsp; 48 min</div>
+          <p class="ep-excerpt">Operational excellence doesn't begin with processes or tools – it begins with people. Manufacturing leader Paul Ives argues that continuous improvement only succeeds when leaders create the right culture…</p>
+          <a class="ep-btn" href="https://podcast.kaizenmadeeasy.com">▶ Listen now</a>
+        </div>
+
+        <div class="show-head">Gemba Academy Podcast</div>
+        <div class="ep-card">
+          <img src="https://blog.gembaacademy.com/wp-content/uploads/2021/08/gemba-academy-podcast-cover-aug2021.jpg" alt="Gemba Academy Podcast cover art">
+          <div class="ep-title">GA 648 | Discovering Lean in High School with Ted Pendergrass</div>
+          <div class="ep-meta">Thu, 03 Sep 2026 &nbsp;·&nbsp; 37:11</div>
+          <p class="ep-excerpt">Most lean practitioners spend their careers trying to change the minds of adults who have been doing things the same way for decades. Ted Pendergrass decided to start earlier…</p>
+          <a class="ep-btn" href="https://podcast.kaizenmadeeasy.com">▶ Listen now</a>
+        </div>
+
+        <div class="show-head">People Solve Problems</div>
+        <div class="ep-card">
+          <img src="https://kajabi-storefronts-production.kajabi-cdn.com/kajabi-storefronts-production/file-uploads/sites/118488/images/73ec4dc-a3c0-542c-7d64-554f1270f8f_Bob_Rogers_PSP_Podcast-2-Bob_Rogers_1080.png" alt="People Solve Problems cover art">
+          <div class="ep-title">Bob Rogers, Chairman, BRC Imagination Arts: Why Your Message Is the Wrong Place to Start</div>
+          <div class="ep-meta">Wed, 02 Sep 2026 &nbsp;·&nbsp; 26 min</div>
+          <p class="ep-excerpt">Host Jamie Flinchbaugh welcomes Bob Rogers, Founder and Chairman of BRC Imagination Arts and author of the new book Deep Story…</p>
+          <a class="ep-btn" href="https://podcast.kaizenmadeeasy.com">▶ Listen now</a>
+        </div>
+      </div>
+
+      <div class="sample-fade"><span>+ 4 more episodes across 3 more shows in this issue</span></div>
+    </div>
+
+    <p class="sample-caption">A Weekly edition. The full collection holds 5,000+ episodes across 20+ shows — <a href="https://podcast.kaizenmadeeasy.com">browse it here</a>.</p>
+  </div>
+</section>
+
+
+
+<section class="recap">
+  <div class="wrap">
+    <h2>Ready to stop chasing feeds?</h2>
+    <p>Twenty-plus shows, every new release, one digest — at whatever pace suits you.</p>
+    <a class="btn btn-red" href="#join">Get Pro access — it's free right now</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="brand">
+      <img src="https://marketing.kaizenmadeeasy.com/assets/images/Logo%20new%202024%20v2%20-%20White.png" alt="Kaizen Made Easy">
+      <span>Learn • Collaborate • Improve</span>
+    </div>
+    <nav>
+      <a href="https://podcast.kaizenmadeeasy.com">Podcast Hub</a>
+      <a href="https://kaizenmadeeasy.com">Website</a>
+      <a href="https://store.kaizenmadeeasy.com/collections/all">Store</a>
+      <a href="https://www.linkedin.com/company/kaizen-made-easy">LinkedIn</a>
+    </nav>
+  </div>
+</footer>
+
+
+
+</body>
+</html>

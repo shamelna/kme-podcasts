@@ -38,6 +38,10 @@ jobs:
         cp admin.html build/
         cp -r css build/
         cp -r js build/
+
+        # Publish the Pro landing page at /subscribe
+        mkdir -p build/subscribe
+        cp podcast-pro-landing.html build/subscribe/index.html
         
         # Create .nojekyll file to ensure proper processing
         touch build/.nojekyll
